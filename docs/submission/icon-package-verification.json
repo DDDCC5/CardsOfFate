@@ -1,0 +1,35 @@
+{
+  "package": "com.example.cardsfate",
+  "version": "1.0.1",
+  "versionCode": 2,
+  "launcherIcon": "res/mipmap-xxxhdpi-v4/ic_spatial_launcher.png",
+  "spatialLayerCount": 1,
+  "templateLayersRemoved": true,
+  "compiledIconPixelChecks": [
+    {
+      "path": "res/mipmap-xxxhdpi-v4/ic_spatial_launcher.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "pixelSha256": "a3155aac1ec823ecacd0e32a37a77badaed79b06b9c71eecffe4d2b38a112f81"
+    },
+    {
+      "path": "res/drawable/icon_3d_layer_0.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "pixelSha256": "a3155aac1ec823ecacd0e32a37a77badaed79b06b9c71eecffe4d2b38a112f81"
+    },
+    {
+      "path": "res/drawable/fate_launcher_foreground.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "pixelSha256": "98226155a7bc3eb246fe22c4eec7bb4ed6675500aa5bb5e7cd18285ae7be4bfc"
+    }
+  ],
+  "passed": true
+}

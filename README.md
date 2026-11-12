@@ -2,7 +2,7 @@
 
 PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，系统为中文时显示「命运之牌」，其他语言显示「Cards of Fate」，运行界面按语言单独显示。
 
-**当前状态：1.0 调试预览版，完整实机验收待完成。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/tag/v1.0-debug) · [投稿资料](docs/submission/填写指南.md)
+**当前状态：1.0.1 调试预览版，完整实机验收待完成。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/tag/v1.0.1-debug) · [投稿资料](docs/submission/填写指南.md)
 
 ## 体验与实现
 
@@ -45,3 +45,7 @@ APK输出：`app/build/outputs/apk/debug/app-debug.apk`。运行素材已包含�
 - `docs/submission/`：按Vibe Lab字段整理的投稿文案与素材说明。
 
 本仓库仅发布应用工程与运行所需素材；不包含本机配置、SDK二进制、插件实现、生产虚拟环境和真实房间截图。第三方来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。公开代码未额外指定统一开源许可证；第三方内容各自遵循其原始许可。
+
+## 1.0.1 图标修正
+
+Android兼容图标与PICO空间图标均打包为确认的塔罗标记，删除模板前景图层；适配图标资源同步更新。编译后的PNG像素与源资源逐一比对通过，资源数组只引用正式图层。[APK图标核对报告](docs/submission/icon-package-verification.json)。
