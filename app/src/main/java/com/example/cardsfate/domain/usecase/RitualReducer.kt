@@ -28,19 +28,17 @@ class RitualReducer(cardIds: List<String> = standardCardIds(), private val rando
                 phase = RitualPhase.SYSTEMS, safetyAccepted = true,
             ) else state
             RitualEvent.SystemsReady -> if (state.safetyAccepted) next(state, RitualPhase.SYSTEMS, RitualPhase.CONTEMPLATE) else state
-            RitualEvent.ContemplationFinished -> next(state, RitualPhase.CONTEMPLATE, RitualPhase.GATHER)
-            RitualEvent.GatherFinished -> next(state, RitualPhase.GATHER, RitualPhase.SHUFFLE)
-            RitualEvent.ShuffleFinished -> if (state.phase == RitualPhase.SHUFFLE) state.copy(
-                phase = RitualPhase.INTERLACE,
+            RitualEvent.ContemplationFinished -> if (state.phase == RitualPhase.CONTEMPLATE) state.copy(
+                phase = RitualPhase.GATHER,
                 deck = cardIds.shuffled(random).map { DrawnCard(it, random.nextBoolean()) },
             ) else state
-            RitualEvent.InterlaceCompleted -> if (state.phase == RitualPhase.INTERLACE) {
-                val count = minOf(2, state.interlaceCount + 1)
-                state.copy(interlaceCount = count, phase = if (count == 2) RitualPhase.DRAW else RitualPhase.INTERLACE)
+            RitualEvent.GatherFinished -> next(state, RitualPhase.GATHER, RitualPhase.DRAW)
+            RitualEvent.DrawFromStack -> if (state.phase == RitualPhase.DRAW &&
+                state.deck.size == 78 && state.selectedIndices.size < 3
+            ) {
+                val selected = state.selectedIndices + state.selectedIndices.size
+                state.copy(selectedIndices = selected, phase = if (selected.size == 3) RitualPhase.SPREAD else RitualPhase.DRAW)
             } else state
-            is RitualEvent.ToggleCard -> toggle(state, event.deckIndex)
-            RitualEvent.ConfirmDraw -> if (state.phase == RitualPhase.DRAW && state.selectedIndices.size == 3)
-                state.copy(phase = RitualPhase.SPREAD) else state
             RitualEvent.SpreadFinished -> next(state, RitualPhase.SPREAD, RitualPhase.READING)
             is RitualEvent.RevealCard -> if (state.phase == RitualPhase.READING &&
                 !state.narrationPlaying && state.revealedCount < 3 &&
@@ -66,12 +64,6 @@ class RitualReducer(cardIds: List<String> = standardCardIds(), private val rando
     private fun next(state: RitualState, from: RitualPhase, to: RitualPhase): RitualState =
         if (state.phase == from) state.copy(phase = to) else state
 
-    private fun toggle(state: RitualState, index: Int): RitualState {
-        if (state.phase != RitualPhase.DRAW || index !in state.deck.indices) return state
-        val selected = if (index in state.selectedIndices) state.selectedIndices - index
-            else if (state.selectedIndices.size < 3) state.selectedIndices + index else state.selectedIndices
-        return state.copy(selectedIndices = selected, phase = if (selected.size == 3) RitualPhase.SPREAD else RitualPhase.DRAW)
-    }
 }
 
 fun standardCardIds(): List<String> = (0..21).map { "major-${it.toString().padStart(2, '0')}" } +

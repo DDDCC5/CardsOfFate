@@ -39,9 +39,8 @@ class FateViewModelTest {
     private fun reading(vm: FateViewModel) {
         ready(vm)
         listOf(RitualEvent.LogoFinished, RitualEvent.AcceptSafety, RitualEvent.SystemsReady,
-            RitualEvent.ContemplationFinished, RitualEvent.GatherFinished, RitualEvent.ShuffleFinished,
-            RitualEvent.InterlaceCompleted, RitualEvent.InterlaceCompleted,
-            RitualEvent.ToggleCard(0), RitualEvent.ToggleCard(1), RitualEvent.ToggleCard(2), RitualEvent.SpreadFinished).forEach(vm::onEvent)
+            RitualEvent.ContemplationFinished, RitualEvent.GatherFinished,
+            RitualEvent.DrawFromStack, RitualEvent.DrawFromStack, RitualEvent.DrawFromStack, RitualEvent.SpreadFinished).forEach(vm::onEvent)
     }
     private fun complete(vm: FateViewModel, services: LocalServices) {
         reading(vm)
@@ -58,6 +57,18 @@ class FateViewModelTest {
         assertEquals(78, vm.state.value.catalog.size)
         assertEquals(listOf("guidance/zh/question"), services.speeches.last().ids)
         assertEquals("中文major-00", vm.title("major-00"))
+    }
+
+    @Test fun blockedLayoutDoesNotReportMissingRoomData() {
+        val vm=vm(LocalServices())
+        ready(vm)
+        listOf(RitualEvent.LogoFinished,RitualEvent.AcceptSafety,RitualEvent.SystemsReady).forEach(vm::onEvent)
+        vm.setRuntimeStatus(true,false,true,false,true,spaceDataReady=true)
+        assertTrue(vm.state.value.spaceDataReady)
+        assertFalse(vm.state.value.spaceReady)
+        assertEquals(SuspensionReason.SPACE_UNAVAILABLE,vm.state.value.ritual.suspension)
+        vm.setRuntimeStatus(true,false,true,false,true,spaceDataReady=false)
+        assertFalse(vm.state.value.spaceDataReady)
     }
 
     @Test fun preflightUiRemainsUsableAndActiveRitualWaitsForSafeRuntime() {
@@ -80,7 +91,7 @@ class FateViewModelTest {
         assertEquals(RitualPhase.GATHER, vm.state.value.ritual.phase)
     }
 
-    @Test fun exactSelectedReadingMustReallyCompleteBeforeAutomaticSummaryAndSave() {
+    @Test fun individualReadingsFinishAndSaveWithoutCombinedNarration() {
         val services = LocalServices()
         val vm = vm(services)
         reading(vm)
@@ -95,7 +106,7 @@ class FateViewModelTest {
         assertEquals("hope patience courage", vm.state.value.ritual.result!!.summary)
         assertEquals(1, vm.state.value.historyRecords.size)
         assertEquals(vm.state.value.ritual.selectedCards, services.stored.single().cards)
-        assertEquals(listOf("summary/en/intro", "summary/en/ending"), services.speeches.last().ids)
+        assertFalse(services.speeches.any { speech -> speech.ids.any { it.startsWith("summary/") } })
         services.speeches[services.speeches.size - 2].complete()
         assertEquals(1, services.stored.size)
     }
@@ -143,7 +154,7 @@ class FateViewModelTest {
         vm.onEvent(RitualEvent.RevealCard(0))
         val old = services.speeches.last()
         vm.toggleHistory()
-        assertTrue(vm.state.value.historyOpen)
+        assertFalse(vm.state.value.historyOpen)
         vm.onEvent(RitualEvent.Reset)
         old.complete()
         assertTrue(vm.state.value.ritual.safetyAccepted)
@@ -176,6 +187,8 @@ class FateViewModelTest {
         val vm = vm(services, ReadingLanguage.EN)
         assertEquals("hope patience courage", vm.state.value.historyRecords.single().summary)
         assertEquals(ReadingLanguage.EN, vm.state.value.historyRecords.single().language)
+        vm.onEvent(RitualEvent.LogoFinished)
+        vm.onEvent(RitualEvent.AcceptSafety)
         vm.showHistoryRecord(services.stored.single())
         assertEquals("hope patience courage", vm.state.value.historyDetail!!.summary)
         assertEquals("原始中文总结", services.stored.single().summary)
@@ -235,25 +248,45 @@ class FateViewModelTest {
         assertFalse(vm.state.value.ritual.narrationPlaying)
     }
 
-    @Test fun languageChangeRelocalizesSummaryAndHistoryWithoutSavingAgain() {
-        val services = LocalServices()
-        val vm = vm(services)
-        complete(vm, services)
-        val stored = services.stored.single()
-        vm.showHistoryRecord(stored)
+    @Test fun languageChangeDoesNotReintroduceCombinedNarrationOrDisplayText() {
+        val services=LocalServices()
+        val vm=vm(services)
+        complete(vm,services)
+        val stored=services.stored.single()
         vm.setLanguage(ReadingLanguage.ZH)
-        assertEquals("希望 耐心 勇气", vm.state.value.ritual.result!!.summary)
-        assertEquals("希望 耐心 勇气", vm.state.value.narrationText)
-        assertEquals("希望 耐心 勇气", vm.state.value.historyRecords.single().summary)
-        assertEquals("希望 耐心 勇气", vm.state.value.historyDetail!!.summary)
-        assertEquals(ReadingLanguage.ZH, vm.state.value.historyDetail!!.language)
-        assertEquals(listOf("summary/zh/intro", "summary/zh/ending"), services.speeches.last().ids)
-        assertEquals(listOf(stored), services.stored)
-        assertEquals(ReadingLanguage.EN, stored.language)
+        assertNull(vm.state.value.narrationText)
+        assertFalse(services.speeches.any { speech -> speech.ids.any { it.startsWith("summary/") } })
+        assertEquals("希望 耐心 勇气",vm.state.value.historyRecords.single().summary)
+        assertEquals(listOf(stored),services.stored)
+        vm.onEvent(RitualEvent.Reset)
+        vm.showHistoryRecord(stored)
+        assertEquals("希望 耐心 勇气",vm.state.value.historyDetail!!.summary)
         vm.setLanguage(ReadingLanguage.EN)
-        assertEquals("hope patience courage", vm.state.value.ritual.result!!.summary)
-        assertEquals(stored, vm.state.value.historyRecords.single())
-        assertEquals(listOf(stored), services.stored)
+        assertEquals(stored,vm.state.value.historyRecords.single())
+        assertEquals(listOf(stored),services.stored)
+    }
+
+    @Test fun historyIsAvailableOnlyOnTheInitialStartPage() {
+        val services=LocalServices()
+        val vm=vm(services)
+        vm.toggleHistory()
+        assertFalse(vm.state.value.historyOpen)
+        ready(vm)
+        vm.onEvent(RitualEvent.LogoFinished)
+        vm.onEvent(RitualEvent.AcceptSafety)
+        vm.toggleHistory()
+        assertTrue(vm.state.value.historyOpen)
+        vm.toggleHistory()
+        vm.onEvent(RitualEvent.SystemsReady)
+        vm.toggleHistory()
+        assertFalse(vm.state.value.historyOpen)
+        vm.showHistoryRecord(null)
+        assertFalse(vm.state.value.historyOpen)
+        val endedServices=LocalServices()
+        val finished=vm(endedServices)
+        complete(finished,endedServices)
+        finished.toggleHistory()
+        assertFalse(finished.state.value.historyOpen)
     }
 
     @Test fun languageChangeWhilePausedQueuesOnlyNewLanguageReadingForResume() {
@@ -273,6 +306,26 @@ class FateViewModelTest {
         assertTrue(replacement.ids.single().startsWith("reading/zh/"))
         replacement.complete()
         assertEquals(1, vm.state.value.ritual.nextRevealIndex)
+    }
+
+    @Test fun historyBackReturnsToListThenToStartWithoutResettingRitual() {
+        val services=LocalServices()
+        val record=HistoryRecord("old",10,listOf(DrawnCard("major-00",false)),"saved",ReadingLanguage.EN)
+        services.stored+=record
+        val model=vm(services)
+        ready(model)
+        model.onEvent(RitualEvent.LogoFinished)
+        model.onEvent(RitualEvent.AcceptSafety)
+        model.onUiEvent(FateUiEvent.ToggleHistory)
+        model.onUiEvent(FateUiEvent.OpenRecord(record))
+        assertEquals(record,model.state.value.historyDetail)
+        model.onUiEvent(FateUiEvent.BackFromHistory)
+        assertTrue(model.state.value.historyOpen)
+        assertNull(model.state.value.historyDetail)
+        model.onUiEvent(FateUiEvent.BackFromHistory)
+        assertFalse(model.state.value.historyOpen)
+        assertEquals(RitualPhase.SYSTEMS,model.state.value.ritual.phase)
+        assertEquals(listOf(record),services.stored)
     }
 
 }

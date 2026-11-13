@@ -64,8 +64,8 @@ class FateViewModel(
                 mutableState.value = state.value.copy(narrationText = null)
             }
         }
-        if (event is RitualEvent.ToggleCard && after.selectedIndices != before.selectedIndices) {
-            playEffect(if (after.selectedIndices.size > before.selectedIndices.size) "select" else "cancel")
+        if (event == RitualEvent.DrawFromStack && after.selectedIndices != before.selectedIndices) {
+            playEffect("select")
         }
         if (event is RitualEvent.RevealCard && after.revealedCount > before.revealedCount) {
             playReading(event.index, after.sessionNumber)
@@ -110,7 +110,7 @@ class FateViewModel(
             ritual = ritual.copy(result = result),
             historyRecords = records,
             historyDetail = detail,
-            narrationText = narration?.text ?: summary?.text,
+            narrationText = if(ritual.phase==RitualPhase.SUMMARY) null else narration?.text,
             audioError = localizationFailure?.let(::message),
             saveError = loaded.exceptionOrNull()?.let(::message) ?: previous.saveError,
         )
@@ -120,15 +120,13 @@ class FateViewModel(
                     dispatch(RitualEvent.NarrationCompleted(readingIndex, ritual.sessionNumber))
                 }
             }
-        } else if (ritual.phase == RitualPhase.SUMMARY && summary != null) {
-            speak(summary.sequenceIds) {}
         }
     }
 
     fun setRuntimeStatus(sceneReady: Boolean, spaceReady: Boolean, handsReady: Boolean,
-                         controllerActive: Boolean, gazeAvailable: Boolean) {
+                         controllerActive: Boolean, gazeAvailable: Boolean, spaceDataReady: Boolean = spaceReady) {
         if (closed) return
-        mutableState.value = state.value.copy(sceneReady = sceneReady, spaceReady = spaceReady,
+        mutableState.value = state.value.copy(sceneReady = sceneReady, spaceReady = spaceReady, spaceDataReady = spaceDataReady,
             handTrackingReady = handsReady, controllerActive = controllerActive, gazeAvailable = gazeAvailable)
         updateSuspension()
         state.value.ritual.let {
@@ -157,17 +155,22 @@ class FateViewModel(
     fun onUiEvent(event: FateUiEvent) {
         when(event) {
             FateUiEvent.ToggleHistory -> toggleHistory()
+            FateUiEvent.BackFromHistory -> {
+                val current=state.value
+                if(!closed && current.historyOpen && ExperiencePolicy.historyAvailable(current.ritual.phase))
+                    mutableState.value=current.copy(historyOpen=current.historyDetail!=null,historyDetail=null)
+            }
             is FateUiEvent.OpenRecord -> showHistoryRecord(event.record)
         }
     }
 
     fun toggleHistory() {
-        if (closed) return
+        if (closed || !ExperiencePolicy.historyAvailable(state.value.ritual.phase)) return
         mutableState.value = state.value.copy(historyOpen = !state.value.historyOpen, historyDetail = null)
     }
 
     fun showHistoryRecord(record: HistoryRecord?) {
-        if (closed) return
+        if (closed || !ExperiencePolicy.historyAvailable(state.value.ritual.phase)) return
         runCatching { record?.let(::localizedRecord) }.fold(onSuccess = {
             mutableState.value = state.value.copy(historyOpen = true, historyDetail = it)
         }, onFailure = { mutableState.value = state.value.copy(saveError = message(it)) })
@@ -202,8 +205,7 @@ class FateViewModel(
             val record = HistoryRecord(newRecordId(), result.completedAtEpochMillis, result.cards, result.summary, state.value.language)
             pendingRecords[record.id] = record
             retrySave()
-            mutableState.value = state.value.copy(narrationText = summary.text)
-            speak(summary.sequenceIds) {}
+            mutableState.value = state.value.copy(narrationText = null)
         }, onFailure = ::audioFailure)
     }
 
@@ -290,7 +292,6 @@ class FateViewModel(
     private fun transitionEffect(phase: RitualPhase): String? = when (phase) {
         RitualPhase.CONTEMPLATE -> "orbit_to_flip"
         RitualPhase.GATHER -> "flip_to_gather"
-        RitualPhase.SHUFFLE -> "gather_to_shuffle"
         RitualPhase.DRAW -> "shuffle_to_draw"
         RitualPhase.SPREAD -> "draw_to_spread"
         RitualPhase.SUMMARY -> "reading_to_summary"

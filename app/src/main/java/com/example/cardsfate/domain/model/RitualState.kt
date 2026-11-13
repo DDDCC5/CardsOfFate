@@ -1,6 +1,6 @@
 package com.example.cardsfate.domain.model
 
-enum class RitualPhase { LOGO, SAFETY, SYSTEMS, CONTEMPLATE, GATHER, SHUFFLE, INTERLACE, DRAW, SPREAD, READING, SUMMARY }
+enum class RitualPhase { LOGO, SAFETY, SYSTEMS, CONTEMPLATE, GATHER, DRAW, SPREAD, READING, SUMMARY }
 enum class SuspensionReason { CONTROLLER_ACTIVE, HAND_TRACKING_LOST, SPACE_UNAVAILABLE }
 enum class ReadingLanguage { ZH, EN }
 
@@ -14,7 +14,6 @@ data class RitualState(
     val sessionNumber: Long = 0,
     val deck: List<DrawnCard> = emptyList(),
     val selectedIndices: List<Int> = emptyList(),
-    val interlaceCount: Int = 0,
     val nextRevealIndex: Int = 0,
     val revealedCount: Int = 0,
     val narrationPlaying: Boolean = false,
@@ -31,10 +30,7 @@ sealed interface RitualEvent {
     data object SystemsReady : RitualEvent
     data object ContemplationFinished : RitualEvent
     data object GatherFinished : RitualEvent
-    data object ShuffleFinished : RitualEvent
-    data object InterlaceCompleted : RitualEvent
-    data class ToggleCard(val deckIndex: Int) : RitualEvent
-    data object ConfirmDraw : RitualEvent
+    data object DrawFromStack : RitualEvent
     data object SpreadFinished : RitualEvent
     data class RevealCard(val index: Int) : RitualEvent
     data class NarrationCompleted(val index: Int, val sessionNumber: Long) : RitualEvent

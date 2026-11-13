@@ -59,8 +59,16 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
     Box(Modifier.width(panelWidth).height(if(id == "status") 230.dp else 440.dp)) {
         // Approved custom engraved panel artwork, rather than a system control skin.
         Image(frame, null, Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
-        Column(Modifier.fillMaxSize().padding(horizontal=36.dp,vertical=28.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement=Arrangement.spacedBy(16.dp), horizontalAlignment=Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxSize().padding(horizontal=36.dp,vertical=28.dp)) {
+            if(id=="history") {
+                FateButton(if(ui.historyDetail==null) local("返回开始页","Back to start") else local("返回历史列表","Back to history"),interact) {
+                    vm.playEffect("button")
+                    vm.onUiEvent(FateUiEvent.BackFromHistory)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement=Arrangement.spacedBy(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
             @Composable fun title(value: String) { Text(value,style=PicoTheme.typography.headlineSmall.copy(fontFamily=FateFont),color=FatePalette.ritualGold,textAlign=TextAlign.Center) }
             @Composable fun body(value: String) { Text(value,style=PicoTheme.typography.bodyLarge.copy(fontFamily=FateFont),color=FatePalette.ritualIvory,textAlign=TextAlign.Center) }
             @Composable fun action(label: String, enabled: Boolean = true, click: () -> Unit) {
@@ -69,8 +77,12 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
             when(id) {
                 "status" -> {
                     if(fault != null) {
-                        title(copy("$fault-title")); body(copy("$fault-copy"))
-                        if(fault == "space-error") action(copy("space-error-primary")) { onRetrySpace() }
+                        if(fault == "space-error" && ui.spaceDataReady) {
+                            title(local("牌群位置需要调整","Card position needs adjusting"))
+                            body(if(phase==RitualPhase.GATHER) local("正前方偏下的区域未通过空间避让检查。请稍移动位置，再重新开始。","The area ahead and below did not pass the room clearance check. Move slightly, then restart.")
+                                else local("当前牌群未通过空间避让检查。请重新开始，让应用重新选择位置。","The current card layout did not pass the room clearance check. Restart to choose a new position."))
+                        } else { title(copy("$fault-title")); body(copy("$fault-copy")) }
+                        if(fault == "space-error") action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
                     } else if(ui.audioError != null) {
                         title(local("旁白暂时中断","Narration interrupted"))
                         body(local("重试后将重新播放当前解读。","Retry to play the current reading again."))
@@ -91,20 +103,17 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                             action(date) { vm.onUiEvent(FateUiEvent.OpenRecord(record)) }
                             body(record.cards.joinToString(" · ") { vm.title(it.cardId)+if(it.reversed) local("（逆位）"," (reversed)") else local("（正位）"," (upright)") })
                         }
-                        action(copy("history-back")) { vm.onUiEvent(FateUiEvent.ToggleHistory) }
                     } else {
                         detail.cards.forEachIndexed { index,card ->
                             body(position(index,zh)+" · "+vm.title(card.cardId)+" · "+orientation(card,zh))
                         }
                         body(detail.summary)
-                        action(copy("history-detail-primary")) { vm.onUiEvent(FateUiEvent.OpenRecord(null)) }
                     }
                 }
                 "reading" -> {
                     if(phase == RitualPhase.SUMMARY) {
-                        title(copy("summary-title")); body(ui.ritual.result?.summary.orEmpty())
+                        title(local("本次解读已完成","Reading complete"))
                         action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
-                        body(local("也可双手合十，再张开重新开始。","You can also bring your palms together, then open them to restart."))
                     } else {
                         val i=(ui.ritual.revealedCount-1).coerceAtLeast(0)
                         val card=ui.ritual.selectedCards.getOrNull(i)
@@ -112,9 +121,8 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         if(ui.ritual.revealedCount>0 && card != null) {
                             body(orientation(card,zh)); body(ui.narrationText.orEmpty())
                         }
-                        if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) body(local("指向下一张牌，捏合并转动手掌，也可直接触碰。","Point at the next card, pinch and turn your palm, or touch it directly."))
+                        if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) body(local("注视下一张牌并捏合双指，或用指尖点按，即可翻牌。","Look at the next card and pinch, or tap it with your fingertip to turn it over."))
                     }
-                    action(copy("summary-history")) { vm.onUiEvent(FateUiEvent.ToggleHistory) }
                 }
                 else -> {
                     val key=when(phase) {
@@ -122,8 +130,6 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         RitualPhase.SYSTEMS -> "systems"
                         RitualPhase.CONTEMPLATE -> "contemplate"
                         RitualPhase.GATHER -> "gather"
-                        RitualPhase.SHUFFLE -> "shuffle"
-                        RitualPhase.INTERLACE -> if(ui.ritual.interlaceCount==0) "interlace-one" else "interlace-two"
                         RitualPhase.DRAW -> "draw"
                         RitualPhase.SPREAD -> "spread"
                         else -> "contemplate"
@@ -138,18 +144,19 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                             action(copy("systems-primary"), ui.sceneReady && ui.spaceReady && ui.handTrackingReady) { vm.onEvent(RitualEvent.SystemsReady) }
                             if(!ui.sceneReady) body(local("牌组正在进入空间…","Bringing the deck into your space…"))
                             else if(!ui.spaceReady) {
-                                body(copy("space-error-copy")); action(copy("space-error-primary")) { onRetrySpace() }
+                                body(copy("space-error-copy")); action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
                             } else if(!ui.handTrackingReady) body(copy("tracking-lost-copy"))
                         }
                         RitualPhase.CONTEMPLATE -> action(copy("contemplate-primary"),ui.ritual.suspension==null) { vm.onEvent(RitualEvent.ContemplationFinished) }
                         RitualPhase.DRAW -> {
-                            body(local("已选 ${ui.ritual.selectedIndices.size} / 3 张","${ui.ritual.selectedIndices.size} / 3 selected"))
+                            body(local("已抽 ${ui.ritual.selectedIndices.size} / 3 张","${ui.ritual.selectedIndices.size} / 3 drawn"))
                             if(!ui.gazeAvailable) body(copy("eye-fallback-copy"))
                         }
                         else -> Unit
                     }
-                    if(phase != RitualPhase.SAFETY) action(copy("history-title")) { vm.onUiEvent(FateUiEvent.ToggleHistory) }
+                    if(ExperiencePolicy.historyAvailable(phase)) action(copy("history-title")) { vm.onUiEvent(FateUiEvent.ToggleHistory) }
                 }
+            }
             }
         }
     }

@@ -14,6 +14,7 @@ data class FateUiState(
     val gazeAvailable: Boolean = false,
     val sceneReady: Boolean = false,
     val spaceReady: Boolean = false,
+    val spaceDataReady: Boolean = false,
     val handTrackingReady: Boolean = false,
     val controllerActive: Boolean = false,
     val narrationText: String? = null,
@@ -22,5 +23,6 @@ data class FateUiState(
 /** Presentation-only overlay events; ritual gestures use the domain RitualEvent hierarchy. */
 sealed interface FateUiEvent {
     data object ToggleHistory : FateUiEvent
+    data object BackFromHistory : FateUiEvent
     data class OpenRecord(val record: HistoryRecord?) : FateUiEvent
 }

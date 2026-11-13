@@ -11,11 +11,10 @@ class RitualReducerTest {
     private fun advance(vararg events: RitualEvent): RitualState = events.fold(RitualState(), reducer::reduce)
     private fun drawState(): RitualState = advance(
         RitualEvent.LogoFinished, RitualEvent.AcceptSafety, RitualEvent.SystemsReady,
-        RitualEvent.ContemplationFinished, RitualEvent.GatherFinished, RitualEvent.ShuffleFinished,
-        RitualEvent.InterlaceCompleted, RitualEvent.InterlaceCompleted,
+        RitualEvent.ContemplationFinished, RitualEvent.GatherFinished,
     )
     private fun readingState(): RitualState = listOf(
-        RitualEvent.ToggleCard(7), RitualEvent.ToggleCard(14), RitualEvent.ToggleCard(28), RitualEvent.SpreadFinished,
+        RitualEvent.DrawFromStack, RitualEvent.DrawFromStack, RitualEvent.DrawFromStack, RitualEvent.SpreadFinished,
     ).fold(drawState(), reducer::reduce)
 
     @Test fun safetyCannotBeSkippedAndConsentSurvivesOnlyWarmReset() {
@@ -33,33 +32,32 @@ class RitualReducerTest {
         assertFalse(RitualState().safetyAccepted)
     }
 
-    @Test fun orderedMilestonesAndTwoInterlacesGateDrawing() {
-        val shuffled = advance(RitualEvent.LogoFinished, RitualEvent.AcceptSafety, RitualEvent.SystemsReady,
-            RitualEvent.ContemplationFinished, RitualEvent.GatherFinished, RitualEvent.ShuffleFinished)
-        assertEquals(RitualPhase.INTERLACE, shuffled.phase)
-        assertEquals(shuffled, reducer.reduce(shuffled, RitualEvent.ToggleCard(0)))
-        val once = reducer.reduce(shuffled, RitualEvent.InterlaceCompleted)
-        assertEquals(1, once.interlaceCount)
-        assertEquals(RitualPhase.INTERLACE, once.phase)
-        val twice = reducer.reduce(once, RitualEvent.InterlaceCompleted)
-        assertEquals(RitualPhase.DRAW, twice.phase)
-        assertEquals(2, twice.interlaceCount)
-        assertEquals(twice, reducer.reduce(twice, RitualEvent.InterlaceCompleted))
+    @Test fun automaticGatherDirectlyEnablesDrawingAndEarlyTapsAreIgnored() {
+        val contemplating=advance(RitualEvent.LogoFinished,RitualEvent.AcceptSafety,RitualEvent.SystemsReady)
+        assertEquals(contemplating,reducer.reduce(contemplating,RitualEvent.DrawFromStack))
+        val gathering=reducer.reduce(contemplating,RitualEvent.ContemplationFinished)
+        assertEquals(RitualPhase.GATHER,gathering.phase)
+        assertEquals(78,gathering.deck.size)
+        assertEquals(gathering,reducer.reduce(gathering,RitualEvent.DrawFromStack))
+        val draw=reducer.reduce(gathering,RitualEvent.GatherFinished)
+        assertEquals(RitualPhase.DRAW,draw.phase)
+        assertTrue(draw.selectedCards.isEmpty())
     }
 
-    @Test fun drawTogglesUniquePositionsAndThirdSelectionStartsSpread() {
-        val draw = drawState()
-        assertEquals(draw, reducer.reduce(draw, RitualEvent.ToggleCard(-1)))
-        assertEquals(draw, reducer.reduce(draw, RitualEvent.ToggleCard(78)))
-        assertEquals(draw, reducer.reduce(draw, RitualEvent.ConfirmDraw))
-        val one = reducer.reduce(draw, RitualEvent.ToggleCard(7))
-        assertEquals(listOf(7), one.selectedIndices)
-        assertEquals(emptyList<Int>(), reducer.reduce(one, RitualEvent.ToggleCard(7)).selectedIndices)
-        val three = listOf(14, 28).fold(one) { s, i -> reducer.reduce(s, RitualEvent.ToggleCard(i)) }
-        assertEquals(RitualPhase.SPREAD, three.phase)
-        assertEquals(listOf(7, 14, 28), three.selectedIndices)
-        assertEquals(3, three.selectedCards.map { it.cardId }.distinct().size)
-        assertEquals(three, reducer.reduce(three, RitualEvent.ToggleCard(33)))
+    @Test fun eachStackTapDrawsOneUniqueCardAndThirdTapStartsSpread() {
+        val draw=drawState()
+        val one=reducer.reduce(draw,RitualEvent.DrawFromStack)
+        assertEquals(listOf(0),one.selectedIndices)
+        assertEquals(RitualPhase.DRAW,one.phase)
+        val two=reducer.reduce(one,RitualEvent.DrawFromStack)
+        assertEquals(listOf(0,1),two.selectedIndices)
+        assertEquals(RitualPhase.DRAW,two.phase)
+        val three=reducer.reduce(two,RitualEvent.DrawFromStack)
+        assertEquals(listOf(0,1,2),three.selectedIndices)
+        assertEquals(3,three.selectedCards.map { it.cardId }.distinct().size)
+        assertEquals(RitualPhase.SPREAD,three.phase)
+        assertEquals(three,reducer.reduce(three,RitualEvent.DrawFromStack))
+        assertEquals(RitualPhase.READING,reducer.reduce(three,RitualEvent.SpreadFinished).phase)
         assertTrue(draw.selectedIndices.isEmpty())
     }
 
@@ -70,7 +68,7 @@ class RitualReducerTest {
         assertNotEquals(standardCardIds(), deck.map { it.cardId })
         assertEquals(deck, RitualReducer(random = Random(42)).let { r ->
             listOf(RitualEvent.LogoFinished, RitualEvent.AcceptSafety, RitualEvent.SystemsReady,
-                RitualEvent.ContemplationFinished, RitualEvent.GatherFinished, RitualEvent.ShuffleFinished)
+                RitualEvent.ContemplationFinished, RitualEvent.GatherFinished)
                 .fold(RitualState(), r::reduce).deck
         })
         val random = object : Random() {
@@ -79,7 +77,7 @@ class RitualReducerTest {
             override fun nextBoolean(): Boolean = (booleans++ % 2 == 0)
         }
         val r = RitualReducer(random = random)
-        val s = r.reduce(RitualState(phase = RitualPhase.SHUFFLE, safetyAccepted = true), RitualEvent.ShuffleFinished)
+        val s = r.reduce(RitualState(phase = RitualPhase.CONTEMPLATE, safetyAccepted = true), RitualEvent.ContemplationFinished)
         assertEquals(78, random.booleans)
         assertEquals(39, s.deck.count { it.reversed })
     }
@@ -136,9 +134,9 @@ class RitualReducerTest {
         val draw = drawState()
         val blocked = reducer.reduce(draw, RitualEvent.SetSuspension(SuspensionReason.CONTROLLER_ACTIVE))
         assertEquals(RitualPhase.DRAW, blocked.phase)
-        assertEquals(blocked, reducer.reduce(blocked, RitualEvent.ToggleCard(4)))
+        assertEquals(blocked, reducer.reduce(blocked, RitualEvent.DrawFromStack))
         val resumed = reducer.reduce(blocked, RitualEvent.SetSuspension(null))
         assertEquals(draw, resumed)
-        assertEquals(listOf(4), reducer.reduce(resumed, RitualEvent.ToggleCard(4)).selectedIndices)
+        assertEquals(listOf(0), reducer.reduce(resumed, RitualEvent.DrawFromStack).selectedIndices)
     }
 }

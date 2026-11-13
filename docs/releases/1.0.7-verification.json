@@ -1,0 +1,49 @@
+{
+  "versionName": "1.0.7",
+  "versionCode": 8,
+  "packageName": "com.example.cardsfate",
+  "sourceRef": "v1.0.7-debug",
+  "buildVariant": "debug",
+  "abi": "arm64-v8a",
+  "sdkBom": "6.1.9",
+  "apk": {
+    "file": "cards-fate-1.0.7-debug.apk",
+    "sizeBytes": 452346350,
+    "sha256": "b89c25a3a6cd450c4296a97a564a436de29b765e32a2a257b51af472de74421f"
+  },
+  "checks": {
+    "managedCodegenBuild": "passed",
+    "unitTests": {
+      "tests": 60,
+      "failures": 0,
+      "errors": 0
+    },
+    "assetPackage": {
+      "passed": true,
+      "cards": 78,
+      "localizedDecks": 2,
+      "modelAssets": 9,
+      "narrationClips": 1262
+    },
+    "spatialUiStyle": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "deviceObservations": {
+    "installedVersion": "1.0.7 (8)",
+    "independentDrawCounts": [
+      1,
+      2,
+      3
+    ],
+    "sequentialReveals": 3,
+    "roomClearanceDuringObservedReading": true,
+    "spatialScreenshotInspected": "three foreground cards in a row; first revealed artwork upright",
+    "historyNavigation": "unit tested; pinned-header implementation reviewed"
+  },
+  "limitations": [
+    "Debug preview; broader device/room and sustained-performance testing remains.",
+    "Generic static verifier is not clean: existing Mixed Stage immersion metadata and SDK wildcard import recognition reports. See README."
+  ]
+}

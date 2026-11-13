@@ -1,6 +1,8 @@
 package com.example.cardsfate.platform.spatial
 
 import android.util.Log
+import com.example.cardsfate.domain.model.*
+import com.pico.spatial.core.math.Quat
 import com.pico.spatial.core.lifecycle.Cancellable
 import com.pico.spatial.core.math.Vector3
 import com.pico.spatial.sense.base.AnchorUpdate
@@ -15,33 +17,29 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Conservative Stage-space AABB of all vertices of a system plane, measured in meters. */
-data class PlaneObstacle(val anchorId: UUID, val minimum: Vector3, val maximum: Vector3)
+data class PlaneObstacle(val anchorId: UUID, val minimum: Vector3, val maximum: Vector3, val mesh: PlaneTriangles)
 
 data class PlaneSpaceSnapshot(
     val obstacles: List<PlaneObstacle>,
     val systemAnchorCount: Int,
     val running: Boolean,
     val error: String?,
+    val revision: Long = 0L,
 ) {
     val ready: Boolean get() = running && error == null && obstacles.isNotEmpty()
 
-    /** Checks known geometry only, not a guarantee that an unobserved real object is absent. */
-    fun isSafe(position: Vector3, radius: Float): Boolean {
-        if (!ready || !radius.isFinite() || radius < 0f ||
-            !position.x.isFinite() || !position.y.isFinite() || !position.z.isFinite()) return false
-        val clearance = radius.toDouble() + 0.025 // Extra 25 mm beyond the supplied object's bounding sphere.
-        return obstacles.all { obstacle ->
-            fun distance(value: Float, low: Float, high: Float): Double = when {
-                value < low -> low.toDouble() - value
-                value > high -> value.toDouble() - high
-                else -> 0.0
-            }
-            val dx = distance(position.x, obstacle.minimum.x, obstacle.maximum.x)
-            val dy = distance(position.y, obstacle.minimum.y, obstacle.maximum.y)
-            val dz = distance(position.z, obstacle.minimum.z, obstacle.maximum.z)
-            dx * dx + dy * dy + dz * dz > clearance * clearance
-        }
+    /** Conservative box for non-card props and automated rotation envelopes. */
+    fun isSafe(position: Vector3, radius: Float): Boolean =
+        isCardSafe(position, Quat.identity(), Vector3(radius,radius,radius))
+
+    fun isCardSafe(position: Vector3, rotation: Quat, half: Vector3, center: Vector3 = Vector3.ZERO): Boolean {
+        if (!ready) return false
+        fun point(v: Vector3) = SpacePoint(v.x.toDouble(),v.y.toDouble(),v.z.toDouble())
+        val box=SpaceBox(point(position+rotation.rotateVector(center)),
+            listOf(Vector3.RIGHT,Vector3.UP,Vector3(0f,0f,1f)).map { point(rotation.rotateVector(it)) },point(half))
+        return obstacles.all { it.mesh.isBoxClear(box,.025) }
     }
+
 }
 
 /**
@@ -56,6 +54,7 @@ class PlaneSpace {
     private var job: Job? = null
     private var active = false
     private var generation = 0L
+    private var revision = 0L
     private var loadError: String? = null
     private val geometry = linkedMapOf<UUID, PlaneObstacle?>()
     private val geometryErrors = linkedMapOf<UUID, String>()
@@ -66,6 +65,7 @@ class PlaneSpace {
             if (active) return
             active = true
             generation++
+            revision++
             loadError = null
             geometry.clear()
             geometryErrors.clear()
@@ -81,7 +81,7 @@ class PlaneSpace {
                         val id = update.anchor.anchorUUID
                         touchedSinceStart.add(id)
                         when (update.event) {
-                            AnchorUpdate.Event.REMOVED -> { geometry.remove(id); geometryErrors.remove(id) }
+                            AnchorUpdate.Event.REMOVED -> { geometry.remove(id); geometryErrors.remove(id); revision++ }
                             AnchorUpdate.Event.ADDED, AnchorUpdate.Event.UPDATED, AnchorUpdate.Event.LOADED -> cache(update.anchor)
                             else -> Unit
                         }
@@ -144,7 +144,7 @@ class PlaneSpace {
     fun snapshot(): PlaneSpaceSnapshot = synchronized(lock) {
         val running = active && try { PlaneTrackingManager.state == TrackingState.RUNNING } catch (_: Exception) { false }
         PlaneSpaceSnapshot(geometry.values.filterNotNull(), geometry.size, running,
-            loadError ?: geometryErrors.values.firstOrNull() ?: if (active && !running) "System plane tracking is not running" else null)
+            loadError ?: geometryErrors.values.firstOrNull() ?: if (active && !running) "System plane tracking is not running" else null, revision)
     }
 
     fun isSafe(position: Vector3, radius: Float): Boolean = snapshot().isSafe(position, radius)
@@ -152,7 +152,7 @@ class PlaneSpace {
     /** Invoked under lock; stores only copied immutable bounds, never native anchor references. */
     private fun cache(anchor: PlaneAnchor) {
         val id = anchor.anchorUUID
-        Log.i("FatePlanes", "anchor vertices=${anchor.vertices.size} indices=${anchor.indices.size} orientation=${anchor.planeOrientation}")
+        revision++
         try {
             val local = anchor.vertices.toList()
             val indices = anchor.indices.toList()
@@ -166,9 +166,13 @@ class PlaneSpace {
             val maximum = Vector3(world.maxOf { it.x }, world.maxOf { it.y }, world.maxOf { it.z })
             val extents = listOf(maximum.x - minimum.x, maximum.y - minimum.y, maximum.z - minimum.z)
             require(extents.count { it > 0.001f } >= 2) { "System plane is degenerate" }
-            geometry[id] = PlaneObstacle(id, minimum, maximum)
+            val mesh=PlaneTriangles(world.map { SpacePoint(it.x.toDouble(),it.y.toDouble(),it.z.toDouble()) },indices)
+            require(mesh.valid) { "System plane has no usable triangles" }
+            geometry[id] = PlaneObstacle(id, minimum, maximum, mesh)
             geometryErrors.remove(id)
+            loadError = null
         } catch (failure: Exception) {
+            Log.w("FatePlanes", "Invalid plane geometry id=$id", failure)
             geometry[id] = null
             geometryErrors[id] = failure.message ?: "Invalid system plane geometry"
         }
