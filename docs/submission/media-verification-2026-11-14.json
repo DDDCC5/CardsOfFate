@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-14",
+  "scope": "submission graphics only; APK unchanged",
+  "visual_review": "Both replacement graphics show card backs and abstract motifs only; no human figures. Feature graphic explicitly labeled non-runtime.",
+  "images": {
+    "01-icon-1024.png": {
+      "width": 1024,
+      "height": 1024,
+      "bytes": 152119,
+      "sha256": "ccf484b49d548284b8169c0953c7a79044125e589e8bbefac387076d6a265e45"
+    },
+    "02-poster-2560x1440.png": {
+      "width": 2560,
+      "height": 1440,
+      "bytes": 3198655,
+      "sha256": "90bc8ed72e85998ea3e0ce56539b115204c8b34eb418dd6e2068568c4137d39b"
+    },
+    "03-features-2560x1440.png": {
+      "width": 2560,
+      "height": 1440,
+      "bytes": 3751948,
+      "sha256": "2310c9ea42f87c8845bc35da62290eaca87afe7ea171dd9d69a246175403bb04"
+    }
+  },
+  "backend_updated": false
+}

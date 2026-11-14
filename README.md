@@ -4,6 +4,10 @@ PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，
 
 **当前版本：1.0.7 调试预览版。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.0.7-debug/cards-fate-1.0.7-debug.apk) · [版本说明](docs/releases/1.0.7.md) · [投稿资料](docs/submission/填写指南.md)
 
+## 投稿图片更新（2026-11-14）
+
+[新版海报](docs/submission/02-poster-2560x1440.png)与[功能展示图](docs/submission/03-features-2560x1440.png)已改为纯牌背和抽象星盘元素，移除旧海报中的人物牌面。两图均为2560×1440，功能图明确标注非实机截图。[替换说明](docs/submission/填写指南.md)。本次只更新投稿资料，APK保持1.0.7。
+
 ## 体验与实现
 
 - 78张牌缩小15%后竖立朝向用户环绕展示；默念结束后自动翻背整齐叠放。点按牌堆三次，每次抽出一张，再继续过去/现在/未来解读。
