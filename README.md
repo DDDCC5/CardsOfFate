@@ -4,6 +4,14 @@ PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，
 
 **当前版本：1.0.7 调试预览版。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.0.7-debug/cards-fate-1.0.7-debug.apk) · [版本说明](docs/releases/1.0.7.md) · [投稿资料](docs/submission/填写指南.md)
 
+## 图标复核（2026-11-16）
+
+![命运之牌正式图标](docs/submission/01-icon-1024.png)
+
+已重新下载GitHub公开的1.0.7 APK，检查Android启动图标、PICO空间图层、编译资源引用并与源码逐像素比对，均为上述自定义塔罗标记；模板前景图层不存在。投稿图标与包内图标在深色背景上的合成结果每通道最大差值为1/255，差异仅在抗锯齿边缘。[本次核对报告](docs/submission/icon-package-verification.json) · [单独下载图标](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.0.7-debug/cards-fate-app-icon-1024.png)。
+
+当前应用源码为`235aa9b9aba26e5b0855b8ce85f83e781e18d6b3`，请使用顶部的1.0.7 APK链接或`v1.0.7-debug`标签。此次未在设备上复现所反馈的默认图标外观，也未据此推断为缓存问题；本轮只更新核对报告与下载入口，不更换已核实正确的APK。
+
 ## 投稿图片更新（2026-11-14）
 
 [新版海报](docs/submission/02-poster-2560x1440.png)与[功能展示图](docs/submission/03-features-2560x1440.png)已改为纯牌背和抽象星盘元素，移除旧海报中的人物牌面。两图均为2560×1440，功能图明确标注非实机截图。[替换说明](docs/submission/填写指南.md)。本次只更新投稿资料，APK保持1.0.7。

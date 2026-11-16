@@ -1,7 +1,7 @@
 {
   "package": "com.example.cardsfate",
-  "version": "1.0.1",
-  "versionCode": 2,
+  "version": "1.0.7",
+  "versionCode": 8,
   "launcherIcon": "res/mipmap-xxxhdpi-v4/ic_spatial_launcher.png",
   "spatialLayerCount": 1,
   "templateLayersRemoved": true,
@@ -31,5 +31,23 @@
       "pixelSha256": "98226155a7bc3eb246fe22c4eec7bb4ed6675500aa5bb5e7cd18285ae7be4bfc"
     }
   ],
-  "passed": true
+  "passed": true,
+  "auditDate": "2026-11-16",
+  "artifactOrigin": "Downloaded again from public GitHub Release v1.0.7-debug",
+  "downloadUrl": "https://github.com/DDDCC5/CardsOfFate/releases/download/v1.0.7-debug/cards-fate-1.0.7-debug.apk",
+  "apkSha256": "b89c25a3a6cd450c4296a97a564a436de29b765e32a2a257b51af472de74421f",
+  "sourceCommit": "235aa9b9aba26e5b0855b8ce85f83e781e18d6b3",
+  "remoteSourceCheckedAtCommit": "eaa66a85e811316e1db409adfda3a8ec41fc6734",
+  "remoteGitBlobMatches": {
+    "app/src/main/res/drawable/icon_3d_layer_0.png": "6ff2e1f123b73af7ea916a5feae9531b6b808212",
+    "docs/submission/01-icon-1024.png": "58b4e135bdc9fa542dce833f810eb1929d2dc62a"
+  },
+  "submissionIconComparison": {
+    "method": "RGBA comparison after compositing packaged circular icon onto #10101e background",
+    "maximumChannelDifference": 1,
+    "tolerance": 1,
+    "passed": true
+  },
+  "deviceLauncherAppearanceVerifiedThisAudit": false,
+  "scope": "Packaging and public GitHub artifact verified. Reported default-icon appearance was not reproduced on a device in this audit."
 }
