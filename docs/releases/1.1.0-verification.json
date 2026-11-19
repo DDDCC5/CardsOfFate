@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-19",
+  "version": "1.1.0",
+  "versionCode": 9,
+  "package": "com.example.cardsfate",
+  "apk": "cards-fate-1.1.0-debug.apk",
+  "apkBytes": 452649353,
+  "apkSha256": "5d8305f7580d3a1519bff81414494ca874bfbddb20700dbfb564c75891c6738b",
+  "sdk": "6.1.9",
+  "cli": "0.7.0",
+  "managedBuild": {
+    "runId": "run-1d26b971-392c-4387-a79c-26b0b04f6369",
+    "backend": "codegen",
+    "status": "completed",
+    "sourceAndBuildOnly": true,
+    "parentRunId": "run-1f9833fd-f32d-4d17-84fd-e920fdefcf81"
+  },
+  "tests": {
+    "tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "spatialUiStyle": {
+    "passed": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "sourceReview": "passed after lifecycle and paging-lock fixes; static only",
+  "emulator": {
+    "device": "emulator-5554",
+    "model": "swan_arm64",
+    "type": "emulator",
+    "installed": true,
+    "running": true,
+    "observedScreen": "application safety notice; hand tracking unavailable",
+    "screenshot": "delivery/verification-1.1.0/emulator-1.1.0-final.png",
+    "dimensions": [
+      1920,
+      1080
+    ]
+  },
+  "physicalDeviceConnected": false,
+  "physicalDeviceInteractionVerified": false,
+  "runtimeVisualParityVerified": false,
+  "spatialAudioPerceptuallyVerified": false,
+  "publishedToGitHub": false,
+  "limitations": [
+    "Real hand/gaze, held rotation, scene clearance and comfort require a connected headset.",
+    "Native spatial audio and emission brightness not perceptually verified.",
+    "Existing generic static Mixed Stage/import findings remain; full JSON-to-App visual validation not claimed."
+  ],
+  "workflowNotes": [
+    "Initial asset-authoring classification selected Editor for imported models; corrected to existing runtime Entity scope.",
+    "Second run used unsupported custom required criterion IDs and blocked at validation. Final run uses supported source/build criteria; functional evidence remains unit tests and static review, not device proof."
+  ],
+  "cards": 78,
+  "narrationClips": 1262,
+  "modelAssets": 13
+}

@@ -111,19 +111,27 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                     }
                 }
                 "reading" -> {
+                    val i=ui.focusedReadingIndex
+                        ?.takeIf { it in 0 until ui.ritual.revealedCount }
+                        ?: (ui.ritual.revealedCount-1).coerceAtLeast(0)
+                    val card=ui.ritual.selectedCards.getOrNull(i)
+                    title(if(card != null && ui.ritual.revealedCount > 0) position(i,zh)+" · "+vm.title(card.cardId)
+                        else local("过去 · 现在 · 未来","Past · Present · Future"))
+                    if(ui.ritual.revealedCount>0 && card != null) {
+                        body(orientation(card,zh))
+                        body(ui.readingDisplayText ?: ui.narrationText.orEmpty())
+                        body(local("轻点已翻开的牌可回看解读；按住拿起，松手归位。",
+                            "Tap a revealed card to revisit its reading. Hold to pick it up; release to return it."))
+                    }
                     if(phase == RitualPhase.SUMMARY) {
-                        title(local("本次解读已完成","Reading complete"))
+                        body(local("本次解读已完成","Reading complete"))
                         action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
-                    } else {
-                        val i=(ui.ritual.revealedCount-1).coerceAtLeast(0)
-                        val card=ui.ritual.selectedCards.getOrNull(i)
-                        title(if(card != null && ui.ritual.revealedCount > 0) position(i,zh)+" · "+vm.title(card.cardId) else local("过去 · 现在 · 未来","Past · Present · Future"))
-                        if(ui.ritual.revealedCount>0 && card != null) {
-                            body(orientation(card,zh)); body(ui.narrationText.orEmpty())
-                        }
-                        if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) body(local("注视下一张牌并捏合双指，或用指尖点按，即可翻牌。","Look at the next card and pinch, or tap it with your fingertip to turn it over."))
+                    } else if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
+                        body(local("注视下一张牌并短捏，或用指尖轻点，即可翻牌；按住是拿起查看。",
+                            "Look at the next card and briefly pinch, or tap with your fingertip to reveal it. Hold to pick up a revealed card."))
                     }
                 }
+
                 else -> {
                     val key=when(phase) {
                         RitualPhase.SAFETY -> "safety"
@@ -134,7 +142,13 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         RitualPhase.SPREAD -> "spread"
                         else -> "contemplate"
                     }
-                    title(copy("$key-title")); body(copy("$key-copy"))
+                    title(copy("$key-title"))
+                    if(phase == RitualPhase.DRAW) {
+                        body(local("每组 13 张。捏住牌背，抽出并放入过去、现在或未来的空位。",
+                            "13 cards per group. Hold a card back, draw it out, and place it in an empty Past, Present, or Future slot."))
+                        body(local("也可轻点牌背，放入下一个空位。",
+                            "You can also tap a card back to place it in the next empty slot."))
+                    } else body(copy("$key-copy"))
                     when(phase) {
                         RitualPhase.SAFETY -> {
                             action(copy("safety-primary")) { vm.onEvent(RitualEvent.AcceptSafety) }
@@ -149,7 +163,17 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         }
                         RitualPhase.CONTEMPLATE -> action(copy("contemplate-primary"),ui.ritual.suspension==null) { vm.onEvent(RitualEvent.ContemplationFinished) }
                         RitualPhase.DRAW -> {
-                            body(local("已抽 ${ui.ritual.selectedIndices.size} / 3 张","${ui.ritual.selectedIndices.size} / 3 drawn"))
+                            body(local("第 ${ui.ritual.drawPage+1} / 6 组 · 已选 ${ui.ritual.selectedIndices.size} / 3 张",
+                                "Group ${ui.ritual.drawPage+1} / 6 · ${ui.ritual.selectedIndices.size} / 3 selected"))
+                            val canChangePage = !ui.isHoldingCard && ui.ritual.suspension == null
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.weight(1f)) {
+                                    action(local("上一组","Previous group"),canChangePage) { vm.onEvent(RitualEvent.ChangeDrawPage(-1)) }
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    action(local("下一组","Next group"),canChangePage) { vm.onEvent(RitualEvent.ChangeDrawPage(1)) }
+                                }
+                            }
                             if(!ui.gazeAvailable) body(copy("eye-fallback-copy"))
                         }
                         else -> Unit

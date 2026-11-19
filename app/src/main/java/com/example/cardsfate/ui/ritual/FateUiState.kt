@@ -18,6 +18,9 @@ data class FateUiState(
     val handTrackingReady: Boolean = false,
     val controllerActive: Boolean = false,
     val narrationText: String? = null,
+    val isHoldingCard: Boolean = false,
+    val focusedReadingIndex: Int? = null,
+    val readingDisplayText: String? = null,
 )
 
 /** Presentation-only overlay events; ritual gestures use the domain RitualEvent hierarchy. */

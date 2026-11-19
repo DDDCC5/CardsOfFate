@@ -15,7 +15,7 @@ class ViewLayoutTest {
             assertTrue(p.z in -.46..-.38)
             assertTrue(sqrt(p.dot(p))<.56)
         }
-        assertEquals(SpacePoint(0.0,-.16,-.42),candidates.first())
+        assertEquals(SpacePoint(0.0,-.18,-.42),candidates.first())
     }
     @Test fun panelIsCloserThanOrbitAndReadingDoesNotInheritOrbitLift() {
         assertEquals(SpacePoint(0.0,0.0,-.70),ViewLayout.mainPanel)

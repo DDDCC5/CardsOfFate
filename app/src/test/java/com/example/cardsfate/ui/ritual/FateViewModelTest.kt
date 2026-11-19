@@ -12,6 +12,7 @@ class FateViewModelTest {
         val stored = mutableListOf<HistoryRecord>()
         var failSave = false
         var released = false
+        var stopCount = 0
         override fun catalog() = standardCardIds().map { CatalogCard(it, "中文$it", "English $it") }
         override fun title(cardId: String, language: ReadingLanguage) = if (language == ReadingLanguage.ZH) "中文$cardId" else "English $cardId"
         override fun narration(id: String) = NarrationUnit(id, "text:$id", "audio/$id.ogg")
@@ -28,7 +29,7 @@ class FateViewModelTest {
             speeches += Speech(sequenceIds, onComplete, onError)
         }
         override fun playEffect(id: String) = Result.success(Unit)
-        override fun stopSpeech() {}
+        override fun stopSpeech() { stopCount++ }
         override fun release() { released = true }
     }
     private fun vm(services: LocalServices, language: ReadingLanguage = ReadingLanguage.EN): FateViewModel {
@@ -45,6 +46,105 @@ class FateViewModelTest {
     private fun complete(vm: FateViewModel, services: LocalServices) {
         reading(vm)
         repeat(3) { vm.onEvent(RitualEvent.RevealCard(it)); services.speeches.last().complete() }
+    }
+
+    @Test fun focusRevealedCardChangesOnlyDisplayAndKeepsPendingNarration() {
+        val services = LocalServices()
+        val model = vm(services)
+        reading(model)
+        model.focusRevealedCard(0)
+        assertNull(model.state.value.focusedReadingIndex)
+        model.onEvent(RitualEvent.RevealCard(0))
+        services.speeches.last().complete()
+        model.onEvent(RitualEvent.RevealCard(1))
+        val pending = services.speeches.last()
+        val speechCount = services.speeches.size
+        val stopCount = services.stopCount
+        val ritual = model.state.value.ritual
+        model.focusRevealedCard(0)
+        assertEquals(0, model.state.value.focusedReadingIndex)
+        assertEquals(services.reading(ritual.selectedCards[0], ReadingLanguage.EN, ReadingPosition.PAST).text,
+            model.state.value.readingDisplayText)
+        listOf(-1, 2, 3).forEach(model::focusRevealedCard)
+        assertEquals(0, model.state.value.focusedReadingIndex)
+        assertEquals(ritual, model.state.value.ritual)
+        assertEquals(speechCount, services.speeches.size)
+        assertEquals(stopCount, services.stopCount)
+        assertTrue(services.stored.isEmpty())
+        pending.complete()
+        assertEquals(2, model.state.value.ritual.nextRevealIndex)
+        assertEquals(0, model.state.value.focusedReadingIndex)
+        model.onEvent(RitualEvent.RevealCard(2))
+        assertEquals(2, model.state.value.focusedReadingIndex)
+    }
+
+    @Test fun summaryRetainsIndividualReadingAndFocusDoesNotSaveOrPlayAgain() {
+        val services = LocalServices()
+        val model = vm(services)
+        complete(model, services)
+        assertEquals(2, model.state.value.focusedReadingIndex)
+        assertNotNull(model.state.value.readingDisplayText)
+        val speechCount = services.speeches.size
+        val stopCount = services.stopCount
+        val stored = services.stored.toList()
+        model.focusRevealedCard(0)
+        model.setLanguage(ReadingLanguage.ZH)
+        assertEquals(0, model.state.value.focusedReadingIndex)
+        assertEquals(services.reading(model.state.value.ritual.selectedCards[0], ReadingLanguage.ZH, ReadingPosition.PAST).text,
+            model.state.value.readingDisplayText)
+        assertEquals(speechCount, services.speeches.size)
+        assertEquals(stopCount + 1, services.stopCount) // Existing language-switch invalidation only.
+        assertEquals(stored, services.stored)
+    }
+
+    @Test fun languageLocalizesFocusedCardWithoutChangingNarratedCard() {
+        val services = LocalServices()
+        val model = vm(services)
+        reading(model)
+        model.onEvent(RitualEvent.RevealCard(0))
+        services.speeches.last().complete()
+        model.onEvent(RitualEvent.RevealCard(1))
+        val old = services.speeches.last()
+        model.focusRevealedCard(0)
+        model.setLanguage(ReadingLanguage.ZH)
+        val cards = model.state.value.ritual.selectedCards
+        assertEquals(services.reading(cards[0], ReadingLanguage.ZH, ReadingPosition.PAST).text,
+            model.state.value.readingDisplayText)
+        assertEquals(listOf(services.reading(cards[1], ReadingLanguage.ZH, ReadingPosition.PRESENT).id),
+            services.speeches.last().ids)
+        old.complete()
+        assertEquals(1, model.state.value.ritual.nextRevealIndex)
+        services.speeches.last().complete()
+        assertEquals(2, model.state.value.ritual.nextRevealIndex)
+        assertEquals(0, model.state.value.focusedReadingIndex)
+    }
+
+    @Test fun holdingLocksDrawPagingAndResetClearsTransientDisplayState() {
+        val services = LocalServices()
+        val model = vm(services)
+        ready(model)
+        listOf(RitualEvent.LogoFinished, RitualEvent.AcceptSafety, RitualEvent.SystemsReady,
+            RitualEvent.ContemplationFinished, RitualEvent.GatherFinished).forEach(model::onEvent)
+        model.setHoldingCard(true)
+        val heldState = model.state.value
+        model.setHoldingCard(true)
+        assertSame(heldState, model.state.value)
+        model.onEvent(RitualEvent.ChangeDrawPage(1))
+        assertEquals(0, model.state.value.ritual.drawPage)
+        model.setHoldingCard(false)
+        model.onEvent(RitualEvent.ChangeDrawPage(1))
+        assertEquals(1, model.state.value.ritual.drawPage)
+        repeat(3) { model.onEvent(RitualEvent.DrawFromStack) }
+        model.onEvent(RitualEvent.SpreadFinished)
+        model.onEvent(RitualEvent.RevealCard(0))
+        val old = services.speeches.last()
+        model.setHoldingCard(true)
+        model.onEvent(RitualEvent.Reset)
+        old.complete()
+        assertFalse(model.state.value.isHoldingCard)
+        assertNull(model.state.value.focusedReadingIndex)
+        assertNull(model.state.value.readingDisplayText)
+        assertEquals(0, model.state.value.ritual.drawPage)
     }
 
     @Test fun selectedSystemLanguageAndApprovedGuidanceAreUsed() {

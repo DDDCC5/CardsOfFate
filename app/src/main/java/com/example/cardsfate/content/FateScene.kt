@@ -65,6 +65,7 @@ private fun FateSceneInstance(vm: FateViewModel, onReload: () -> Unit) {
             catch (error: Exception) { fail(error) }
         }
         fun pause() {
+            controller.cancelTransientInteraction()
             resumed = false
             vm.pauseAudio()
             vm.setRuntimeStatus(loaded, false, false, false, false)
@@ -109,7 +110,7 @@ private fun FateSceneInstance(vm: FateViewModel, onReload: () -> Unit) {
             errorEntity.components[TransformComponent::class.java]?.setPosition(Vector3(0f, 0f, -1.2f))
             content.addEntity(errorEntity)
             try {
-                listOf("main", "history", "reading", "status").forEach { id ->
+                listOf("main", "history", "reading", "status","slot-0","slot-1","slot-2").forEach { id ->
                     controller.setPanelEntity(id, requireNotNull(attachments.entity(id)) { "Missing $id attachment" })
                 }
                 content.addEntity(controller.root)
@@ -127,10 +128,19 @@ private fun FateSceneInstance(vm: FateViewModel, onReload: () -> Unit) {
             catch (error: Exception) { fail(error) }
         },
         attachments = {
-            listOf("main", "history", "reading", "status").forEach { id ->
+            listOf("main", "history", "reading", "status","slot-0","slot-1","slot-2").forEach { id ->
                 AttachmentPanel(id = id) {
                     PicoTheme {
-                        FateScreen(id, onRetrySpace = {
+                        if(id.startsWith("slot-")) {
+                            val slotUi by vm.state.collectAsStateWithLifecycle()
+                            val slotZh=slotUi.language==ReadingLanguage.ZH
+                            val index=id.last().digitToInt()
+                            Box(Modifier.width(90.dp),contentAlignment=androidx.compose.ui.Alignment.Center) {
+                                val keyword=if(index<slotUi.ritual.revealedCount) vm.keywordForSlot(index) else ""
+                                Text((if(slotZh) listOf("过去","现在","未来") else listOf("Past","Present","Future"))[index]+if(keyword.isBlank()) "" else "\n"+keyword,
+                                    style=PicoTheme.typography.titleMedium.copy(fontFamily=FateFont),color=FatePalette.ritualGold)
+                            }
+                        } else FateScreen(id, onRetrySpace = {
                             planes.stop()
                             if (resumed) planes.start(scope)
                             controller.retrySpace()

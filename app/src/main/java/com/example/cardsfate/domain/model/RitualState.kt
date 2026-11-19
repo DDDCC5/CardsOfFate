@@ -14,6 +14,8 @@ data class RitualState(
     val sessionNumber: Long = 0,
     val deck: List<DrawnCard> = emptyList(),
     val selectedIndices: List<Int> = emptyList(),
+    val selectedSlots: List<Int> = emptyList(),
+    val drawPage: Int = 0,
     val nextRevealIndex: Int = 0,
     val revealedCount: Int = 0,
     val narrationPlaying: Boolean = false,
@@ -21,7 +23,16 @@ data class RitualState(
     val suspension: SuspensionReason? = null,
     val result: RitualResult? = null,
 ) {
-    val selectedCards: List<DrawnCard> get() = selectedIndices.map { deck[it] }
+    // Older in-process snapshots assigned cards in left-to-right selection order.
+    fun slotForDeckIndex(deckIndex: Int): Int? = selectedIndices.indexOf(deckIndex)
+        .takeIf { it >= 0 }?.let { selectedSlots.getOrNull(it) ?: it }
+
+    fun deckIndexForSlot(slot: Int): Int? = selectedIndices.firstOrNull {
+        slotForDeckIndex(it) == slot
+    }
+
+    val selectedCards: List<DrawnCard> get() = selectedIndices
+        .sortedBy { slotForDeckIndex(it) }.map { deck[it] }
 }
 
 sealed interface RitualEvent {
@@ -31,6 +42,8 @@ sealed interface RitualEvent {
     data object ContemplationFinished : RitualEvent
     data object GatherFinished : RitualEvent
     data object DrawFromStack : RitualEvent
+    data class SelectCard(val deckIndex: Int, val slot: Int) : RitualEvent
+    data class ChangeDrawPage(val delta: Int) : RitualEvent
     data object SpreadFinished : RitualEvent
     data class RevealCard(val index: Int) : RitualEvent
     data class NarrationCompleted(val index: Int, val sessionNumber: Long) : RitualEvent

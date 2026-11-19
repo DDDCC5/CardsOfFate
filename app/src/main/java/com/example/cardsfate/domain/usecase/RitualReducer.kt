@@ -33,12 +33,15 @@ class RitualReducer(cardIds: List<String> = standardCardIds(), private val rando
                 deck = cardIds.shuffled(random).map { DrawnCard(it, random.nextBoolean()) },
             ) else state
             RitualEvent.GatherFinished -> next(state, RitualPhase.GATHER, RitualPhase.DRAW)
-            RitualEvent.DrawFromStack -> if (state.phase == RitualPhase.DRAW &&
-                state.deck.size == 78 && state.selectedIndices.size < 3
-            ) {
-                val selected = state.selectedIndices + state.selectedIndices.size
-                state.copy(selectedIndices = selected, phase = if (selected.size == 3) RitualPhase.SPREAD else RitualPhase.DRAW)
-            } else state
+            RitualEvent.DrawFromStack -> {
+                val deckIndex = state.deck.indices.firstOrNull { it !in state.selectedIndices }
+                val slot = (0..2).firstOrNull { state.deckIndexForSlot(it) == null }
+                if (deckIndex != null && slot != null) selectCard(state, deckIndex, slot) else state
+            }
+            is RitualEvent.SelectCard -> selectCard(state, event.deckIndex, event.slot)
+            is RitualEvent.ChangeDrawPage -> if (state.phase == RitualPhase.DRAW) state.copy(
+                drawPage = Math.floorMod(state.drawPage.toLong() + event.delta.toLong(), 6L).toInt(),
+            ) else state
             RitualEvent.SpreadFinished -> next(state, RitualPhase.SPREAD, RitualPhase.READING)
             is RitualEvent.RevealCard -> if (state.phase == RitualPhase.READING &&
                 !state.narrationPlaying && state.revealedCount < 3 &&
@@ -59,6 +62,20 @@ class RitualReducer(cardIds: List<String> = standardCardIds(), private val rando
             ) else state
             else -> state
         }
+    }
+
+    private fun selectCard(state: RitualState, deckIndex: Int, slot: Int): RitualState {
+        if (state.phase != RitualPhase.DRAW || state.deck.size != 78 ||
+            state.selectedIndices.size >= 3 || deckIndex !in 0..77 || slot !in 0..2 ||
+            deckIndex in state.selectedIndices || state.deckIndexForSlot(slot) != null
+        ) return state
+        val slots = state.selectedIndices.map { state.slotForDeckIndex(it)!! } + slot
+        val selected = state.selectedIndices + deckIndex
+        return state.copy(
+            selectedIndices = selected,
+            selectedSlots = slots,
+            phase = if (selected.size == 3) RitualPhase.SPREAD else RitualPhase.DRAW,
+        )
     }
 
     private fun next(state: RitualState, from: RitualPhase, to: RitualPhase): RitualState =

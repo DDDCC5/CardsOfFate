@@ -23,7 +23,10 @@ with zipfile.ZipFile(apk) as z:
             for orientation in ('upright','reversed'):
                 for position in ('past','present','future'):
                     assert any(u['id']==f'reading/{lang}/{card["id"]}/{orientation}/{position}' for u in units)
-    for model in ('candle','crystal','astrolabe','rune_0','rune_1','rune_2','rune_3'):
+    for model in ('candle','crystal','astrolabe','rune_0','rune_1','rune_2','rune_3','fate_light_point','fate_landing_ring','fate_reveal_rune','fate_connection_segment'):
         assert f'assets/models/{model}.glb' in entries
+        assert z.read(f'assets/models/{model}.glb')[:4] == b'glTF'
+    for effect in ('select','flip','cancel'):
+        assert f'assets/audio/sfx/{effect}.wav' in entries
     assert not any('/.venv/' in n or n.endswith('.blend') for n in entries)
-    print(json.dumps({'apk':str(apk.resolve()),'cards':78,'localizedDecks':2,'narrationClips':len(units),'modelAssets':9,'passed':True},ensure_ascii=False,indent=2))
+    print(json.dumps({'apk':str(apk.resolve()),'cards':78,'localizedDecks':2,'narrationClips':len(units),'modelAssets':13,'interactionEffectModels':4,'passed':True},ensure_ascii=False,indent=2))

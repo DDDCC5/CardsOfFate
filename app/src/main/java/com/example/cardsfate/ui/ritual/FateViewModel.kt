@@ -36,7 +36,35 @@ class FateViewModel(
         if (closed || event is RitualEvent.NarrationCompleted || event is RitualEvent.FinishReading) return
         if (state.value.historyOpen && event != RitualEvent.Reset) return
         if (event == RitualEvent.SystemsReady && !runtimeReady()) return
+        if (event is RitualEvent.ChangeDrawPage && state.value.isHoldingCard) return
         dispatch(event)
+    }
+
+    fun setHoldingCard(holding: Boolean) {
+        if (closed || state.value.isHoldingCard == holding) return
+        mutableState.value = state.value.copy(isHoldingCard = holding)
+    }
+
+    /** Inspecting a revealed card never owns or alters sequential speech completion. */
+    fun keywordForSlot(index:Int):String {
+        val ui=state.value
+        if(index !in 0 until ui.ritual.revealedCount) return ""
+        val card=ui.ritual.selectedCards.getOrNull(index) ?: return ""
+        val lang=if(ui.language==ReadingLanguage.ZH) "zh" else "en"
+        val direction=if(card.reversed) "reversed" else "upright"
+        return runCatching { services.narration("keyword/$lang/${card.cardId}/$direction").text }.getOrDefault("")
+    }
+
+    fun focusRevealedCard(index: Int) {
+        val ui = state.value
+        val ritual = ui.ritual
+        if (closed || ritual.phase !in setOf(RitualPhase.READING, RitualPhase.SUMMARY) ||
+            index !in 0 until ritual.revealedCount) return
+        val card = ritual.selectedCards.getOrNull(index) ?: return
+        runCatching { services.reading(card, ui.language, ReadingPosition.entries[index]) }
+            .onSuccess { reading ->
+                mutableState.value = state.value.copy(focusedReadingIndex = index, readingDisplayText = reading.text)
+            }
     }
 
     private fun dispatch(event: RitualEvent) {
@@ -48,7 +76,8 @@ class FateViewModel(
         if (event == RitualEvent.Reset) {
             invalidateSpeech()
             mutableState.value = state.value.copy(historyOpen = false, historyDetail = null,
-                audioError = null, narrationText = null)
+                audioError = null, narrationText = null, isHoldingCard = false,
+                focusedReadingIndex = null, readingDisplayText = null)
         }
         updateSuspension()
         if (before.phase != after.phase) {
@@ -68,7 +97,8 @@ class FateViewModel(
             playEffect("select")
         }
         if (event is RitualEvent.RevealCard && after.revealedCount > before.revealedCount) {
-            playReading(event.index, after.sessionNumber)
+            mutableState.value = state.value.copy(focusedReadingIndex = event.index, readingDisplayText = null)
+            playReading(event.index, after.sessionNumber, focusDisplay = true)
         }
         if (event is RitualEvent.NarrationCompleted && after.revealedCount == 3 && after.narrationCompleted) {
             finishReading()
@@ -96,11 +126,16 @@ class FateViewModel(
         val summary = ritual.result?.let { resolve { services.summary(it.cards, language) } }
         val result = ritual.result?.copy(summary = summary?.text.orEmpty())
         val readingIndex = if (ritual.narrationPlaying) ritual.nextRevealIndex else ritual.revealedCount - 1
+        val focusedReading = previous.focusedReadingIndex?.takeIf {
+            ritual.phase in setOf(RitualPhase.READING, RitualPhase.SUMMARY) && it in 0 until ritual.revealedCount
+        }?.let { index -> resolve {
+            services.reading(ritual.selectedCards[index], language, ReadingPosition.entries[index])
+        } }
         val narration = when {
             ritual.phase == RitualPhase.CONTEMPLATE -> resolve {
                 services.narration("guidance/${if (language == ReadingLanguage.ZH) "zh" else "en"}/question")
             }
-            ritual.phase == RitualPhase.READING && readingIndex in ritual.selectedCards.indices -> resolve {
+            ritual.phase == RitualPhase.READING && ritual.narrationPlaying && readingIndex in ritual.selectedCards.indices -> resolve {
                 services.reading(ritual.selectedCards[readingIndex], language, ReadingPosition.entries[readingIndex])
             }
             else -> null
@@ -111,6 +146,7 @@ class FateViewModel(
             historyRecords = records,
             historyDetail = detail,
             narrationText = if(ritual.phase==RitualPhase.SUMMARY) null else narration?.text,
+            readingDisplayText = focusedReading?.text,
             audioError = localizationFailure?.let(::message),
             saveError = loaded.exceptionOrNull()?.let(::message) ?: previous.saveError,
         )
@@ -141,7 +177,7 @@ class FateViewModel(
 
     private fun updateSuspension() {
         val ui = state.value
-        val active = ui.ritual.phase !in setOf(RitualPhase.LOGO, RitualPhase.SAFETY, RitualPhase.SYSTEMS, RitualPhase.SUMMARY)
+        val active = ui.ritual.phase !in setOf(RitualPhase.LOGO, RitualPhase.SAFETY, RitualPhase.SYSTEMS)
         val reason = when {
             !active -> null
             ui.controllerActive -> SuspensionReason.CONTROLLER_ACTIVE
@@ -186,10 +222,14 @@ class FateViewModel(
         )
     }
 
-    private fun playReading(index: Int, session: Long) {
+    private fun playReading(index: Int, session: Long, focusDisplay: Boolean = false) {
         runCatching { services.reading(state.value.ritual.selectedCards[index], state.value.language, ReadingPosition.entries[index]) }
             .fold(onSuccess = { narration ->
-                mutableState.value = state.value.copy(narrationText = narration.text)
+                mutableState.value = state.value.copy(
+                    narrationText = narration.text,
+                    readingDisplayText = if (focusDisplay || state.value.focusedReadingIndex == index) narration.text
+                        else state.value.readingDisplayText,
+                )
                 playEffect("flip_to_reading")
                 speak(listOf(narration.id)) { dispatch(RitualEvent.NarrationCompleted(index, session)) }
             }, onFailure = ::audioFailure)
