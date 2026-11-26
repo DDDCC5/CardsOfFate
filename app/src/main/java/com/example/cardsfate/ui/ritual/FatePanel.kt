@@ -77,12 +77,15 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
             when(id) {
                 "status" -> {
                     if(fault != null) {
-                        if(fault == "space-error" && ui.spaceDataReady) {
+                        if(fault=="space-error" && phase==RitualPhase.CONTEMPLATE) {
+                            title(local("正在恢复空间追踪","Restoring spatial tracking"))
+                            body(local("请稍候，追踪恢复后会继续当前问题，无需重新开始。","Please wait. Your current question will continue when tracking returns; no restart is needed."))
+                        } else if(fault == "space-error" && ui.spaceDataReady) {
                             title(local("牌群位置需要调整","Card position needs adjusting"))
                             body(if(phase==RitualPhase.GATHER) local("正前方偏下的区域未通过空间避让检查。请稍移动位置，再重新开始。","The area ahead and below did not pass the room clearance check. Move slightly, then restart.")
                                 else local("当前牌群未通过空间避让检查。请重新开始，让应用重新选择位置。","The current card layout did not pass the room clearance check. Restart to choose a new position."))
                         } else { title(copy("$fault-title")); body(copy("$fault-copy")) }
-                        if(fault == "space-error") action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
+                        if(fault == "space-error") action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS,RitualPhase.CONTEMPLATE)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
                     } else if(ui.audioError != null) {
                         title(local("旁白暂时中断","Narration interrupted"))
                         body(local("重试后将重新播放当前解读。","Retry to play the current reading again."))
@@ -120,15 +123,15 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                     if(ui.ritual.revealedCount>0 && card != null) {
                         body(orientation(card,zh))
                         body(ui.readingDisplayText ?: ui.narrationText.orEmpty())
-                        body(local("轻点已翻开的牌可回看解读；按住拿起，松手归位。",
-                            "Tap a revealed card to revisit its reading. Hold to pick it up; release to return it."))
+                        body(local("轻点已翻开的牌可回看解读；解读中的卡牌保持固定。",
+                            "Tap a revealed card to revisit its reading. Reading cards remain fixed."))
                     }
                     if(phase == RitualPhase.SUMMARY) {
                         body(local("本次解读已完成","Reading complete"))
                         action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
                     } else if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
-                        body(local("注视下一张牌并短捏，或用指尖轻点，即可翻牌；按住是拿起查看。",
-                            "Look at the next card and briefly pinch, or tap with your fingertip to reveal it. Hold to pick up a revealed card."))
+                        body(local("注视下一张牌并短捏，或用指尖轻点，即可翻牌；翻开后保持原位。",
+                            "Look at the next card and briefly pinch, or tap with your fingertip to reveal it. Revealed cards stay in place."))
                     }
                 }
 
@@ -158,7 +161,7 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                             action(copy("systems-primary"), ui.sceneReady && ui.spaceReady && ui.handTrackingReady) { vm.onEvent(RitualEvent.SystemsReady) }
                             if(!ui.sceneReady) body(local("牌组正在进入空间…","Bringing the deck into your space…"))
                             else if(!ui.spaceReady) {
-                                body(copy("space-error-copy")); action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
+                                body(copy("space-error-copy")); action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS,RitualPhase.CONTEMPLATE)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
                             } else if(!ui.handTrackingReady) body(copy("tracking-lost-copy"))
                         }
                         RitualPhase.CONTEMPLATE -> action(copy("contemplate-primary"),ui.ritual.suspension==null) { vm.onEvent(RitualEvent.ContemplationFinished) }

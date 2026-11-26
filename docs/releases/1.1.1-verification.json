@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-26",
+  "version": "1.1.1",
+  "versionCode": 10,
+  "package": "com.example.cardsfate",
+  "apkSha256": "dda9f86d590d1711f2ed77a8a99a707aaced40e7860665e9dbeaced37930f849",
+  "apkBytes": 452650817,
+  "tests": {
+    "tests": 83,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "buildPassed": true,
+  "packageCheckPassed": true,
+  "iconCheckPassed": true,
+  "uiStylePassed": true,
+  "changes": [
+    "Contemplation orbit obstruction hides only the blocked preview card, without a sticky session error.",
+    "Space retry during contemplation preserves the session and captured frame.",
+    "Reading and completed cards ignore hold movement; renderer always uses fixed reading poses."
+  ],
+  "deviceInstalled": true,
+  "realUserHeadMovementAndDragVerified": false,
+  "publishedToGitHub": false,
+  "environmentNote": "CLI doctor reports an unrelated headless Editor orphan. Editor not used by these local source/build/device operations."
+}

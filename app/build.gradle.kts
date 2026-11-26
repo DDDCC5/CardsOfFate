@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.cardsfate"
         minSdk = 35
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.1.0"
+        versionCode = 10
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters.add("arm64-v8a") }

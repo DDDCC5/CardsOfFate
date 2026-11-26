@@ -91,6 +91,7 @@ class FateSceneController(
     private var fanPage=-1
     private var feedback:RitualFeedback?=null
     private var cardAudio:CardSpatialAudio?=null
+    private val hiddenOrbitCards=mutableSetOf<String>()
     private var unsafe = false
     private var rejectionLogged = false
     private var controllerLastPosition: Vector3? = null
@@ -237,10 +238,13 @@ class FateSceneController(
     }
 
     fun retrySpace() {
-        if(vm.state.value.ritual.phase !in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS)) vm.onEvent(RitualEvent.Reset)
+        val current=vm.state.value.ritual.phase
+        if(ExperiencePolicy.spaceRetryRequiresReset(current)) vm.onEvent(RitualEvent.Reset)
         cards.values.forEach { it.owner.enabled=false }
         resetPressInputs()
-        orbitRadius=null;interactionHead=null;layoutRevision=-1L;placementAttemptMs=-1000L;unsafe=false;rejectionLogged=false
+        // Keep the captured frame/radius while the room service restarts during contemplation.
+        if(current!=RitualPhase.CONTEMPLATE) { orbitRadius=null;interactionHead=null }
+        layoutRevision=-1L;placementAttemptMs=-1000L;unsafe=false;rejectionLogged=false
     }
 
     fun frame(frameTimeNanos: Long) {
@@ -270,7 +274,15 @@ class FateSceneController(
         }
         val environment = space.snapshot()
         frameEnvironment = environment
-        if(environment.ready && cards.values.any { it.owner.enabled && !cardSafe(it,it.position,it.rotation,"environment-update") }) unsafe=true
+        if(environment.ready) {
+            // Validate the geometry actually on screen, not a button's next requested phase.
+            // A plane update and "ready" press can occur between two rendered frames.
+            if(!ExperiencePolicy.cardCollisionBlocksSession(phase ?: vm.state.value.ritual.phase)) {
+                cards.values.filter { it.owner.enabled && !cardSafe(it,it.position,it.rotation,"orbit-update") }.forEach {
+                    it.owner.enabled=false;it.face.enabled=false;hiddenOrbitCards+=it.id
+                }
+            } else if(cards.values.any { it.owner.enabled && !cardSafe(it,it.position,it.rotation,"environment-update") }) unsafe=true
+        }
         val ritual=vm.state.value.ritual
         val entering=ritual.phase==RitualPhase.CONTEMPLATE && ritual.sessionNumber!=placementSession
         if(entering) { placementSession=ritual.sessionNumber; orbitRadius=null;placementAttemptMs=-1000L;layoutRevision=-1L }
@@ -360,6 +372,15 @@ class FateSceneController(
                 vm.setRuntimeStatus(loaded,false,input.handsAvailable,controllerActive,input.gazeAvailable,environment.ready)
                 updatePanels();return
             }
+            if(state.phase==RitualPhase.GATHER && hiddenOrbitCards.isNotEmpty()) {
+                state.deck.forEachIndexed { index,drawn ->
+                    if(drawn.cardId in hiddenOrbitCards) {
+                        val card=cards.getValue(drawn.cardId)
+                        card.face.enabled=false
+                        place(card,stackPosition(index),stackRotation())
+                    }
+                }
+            }
             // Process-owned ritual survives a Stage/Activity recreation; Entity handles do not.
             if (phase == null) {
                 if (state.phase in setOf(RitualPhase.READING, RitualPhase.SUMMARY)) {
@@ -391,7 +412,7 @@ class FateSceneController(
             if (phase in setOf(RitualPhase.DRAW,RitualPhase.READING)) resetPressInputs()
             if (phase==RitualPhase.DRAW) { fanOpenedAt=ritualSeconds;fanPage=state.drawPage }
             if (phase==RitualPhase.SPREAD) cancelGrip()
-            if (phase == RitualPhase.SYSTEMS) { returns.clear();deferredReturns.clear();feedback?.clear();fanPage=-1; classifier = HandRitualClassifier(); lastHandsTime = -1L; drawFlights.clear(); resetPressInputs() }
+            if (phase == RitualPhase.SYSTEMS) { hiddenOrbitCards.clear();returns.clear();deferredReturns.clear();feedback?.clear();fanPage=-1; classifier = HandRitualClassifier(); lastHandsTime = -1L; drawFlights.clear(); resetPressInputs() }
             if(phase == RitualPhase.GATHER && !gatherPrepared && !prepareAutomaticMotion(state)) unsafe=true
         }
         if(unsafe) {
@@ -424,12 +445,16 @@ class FateSceneController(
         val selected = state.selectedIndices.map { deckOrder[it] }
         cards.values.forEach { it.owner.enabled = true }
         when (state.phase) {
-            RitualPhase.CONTEMPLATE -> cards.values.forEachIndexed { index, card ->
-                place(card, orbit(index, orbitRadius!!, ritualSeconds * PI.toFloat() / 90f),
-                    orbitRotation(index,ritualSeconds * PI.toFloat() / 90f))
-                card.face.enabled = true
-                val view=frontYaw.conjugate().rotateVector(card.position-(frontOrigin ?: initialHead!!))
-                card.owner.enabled=!ViewLayout.obstructsGuidance(point(view),card.half.length().toDouble())
+            RitualPhase.CONTEMPLATE -> {
+                hiddenOrbitCards.clear()
+                cards.values.forEachIndexed { index, card ->
+                    val clear=place(card, orbit(index, orbitRadius!!, ritualSeconds * PI.toFloat() / 90f),
+                        orbitRotation(index,ritualSeconds * PI.toFloat() / 90f))
+                    val view=frontYaw.conjugate().rotateVector(card.position-(frontOrigin ?: initialHead!!))
+                    card.owner.enabled=clear && !ViewLayout.obstructsGuidance(point(view),card.half.length().toDouble())
+                    card.face.enabled=card.owner.enabled
+                    if(!card.owner.enabled) hiddenOrbitCards+=card.id
+                }
             }
             RitualPhase.GATHER -> {
                 val t = (elapsed / 2.4f).coerceIn(0f, 1f)
@@ -459,7 +484,8 @@ class FateSceneController(
         }
         pivots.forEach { pivot -> pivot.entity.components.get<TransformComponent>()!!.quaternion =
             pivot.base * Quat(pivot.axis, if(pivot.continuous) ritualSeconds*pivot.speed else sin(ritualSeconds*pivot.speed)*.08f) }
-        if (cards.values.any { it.owner.enabled && !cardSafe(it,it.position,it.rotation) }) unsafe = true
+        if (ExperiencePolicy.cardCollisionBlocksSession(state.phase) &&
+            cards.values.any { it.owner.enabled && !cardSafe(it,it.position,it.rotation) }) unsafe = true
         if (unsafe) {
             cards.values.forEach { it.owner.enabled = false }
             decorations.forEach { it.enabled = false }
@@ -551,9 +577,7 @@ class FateSceneController(
             val index=selected.indexOf(card.id)
             card.owner.enabled=index>=0
             if(index<0) { card.face.enabled=false;return@forEach }
-            val held=grip?.takeIf { it.cardId==card.id && it.moving }
-            if(held!=null) { card.face.enabled=index<state.revealedCount;return@forEach }
-            if(renderReturn(card)) { card.face.enabled=index<state.revealedCount;return@forEach }
+            // Reading poses are authoritative, including any stale transient grab/return state.
             val turn=revealTurn?.takeIf { it.cardId==card.id }
             if(turn!=null) {
                 val t=((ritualSeconds-turn.started)/CardFlipMotion.DURATION_SECONDS).coerceIn(0f,1f)
@@ -682,12 +706,13 @@ class FateSceneController(
             if(joint==null || !joint.rotation.isFinite() || joint.rotation.length()<.1f || !point(joint.position).finite()) {
                 beginReturn(active);cancelGrip();return
             }
-            if((signal==CardPressGate.Signal.HOLDING || signal==CardPressGate.Signal.HOLD_RELEASE) && !active.fromDeck &&
-                state.selectedCards.indexOfFirst { it.cardId==active.cardId }>=state.revealedCount) {
+            if((signal==CardPressGate.Signal.HOLDING || signal==CardPressGate.Signal.HOLD_RELEASE) &&
+                !ExperiencePolicy.cardMovementAvailable(state.phase)) {
                 if(signal==CardPressGate.Signal.HOLD_RELEASE) { grip=null;vm.setHoldingCard(false) }
                 return
             }
-            if(signal==CardPressGate.Signal.HOLDING || signal==CardPressGate.Signal.HOLD_RELEASE) {
+            if((signal==CardPressGate.Signal.HOLDING || signal==CardPressGate.Signal.HOLD_RELEASE) &&
+                ExperiencePolicy.cardMovementAvailable(state.phase)) {
                 active.moving=true;vm.setHoldingCard(true)
                 val card=cards.getValue(active.cardId)
                 val q=joint.rotation.normalize()
@@ -887,7 +912,7 @@ class FateSceneController(
         val env=frameEnvironment ?: space.snapshot()
         val height=listOf(.5f,.75f,1f).firstOrNull { height -> state.deck.withIndex().all { (index,drawn) ->
             val card=cards.getValue(drawn.cardId)
-            (0..60).all { sample ->
+            drawn.cardId in hiddenOrbitCards || (0..60).all { sample ->
                 val t=sample/60f
                 env.isCardSafe(flightPosition(card.position,stackPosition(index),t,height),
                     Quat.slerp(card.rotation,stackRotation(),RitualFlightPath.flipProgress(t.toDouble()).toFloat()),card.half,card.boundsCenter)
@@ -959,11 +984,16 @@ class FateSceneController(
         val angle=index*(2f*PI.toFloat()/78f)+offset
         return yaw*Quat(Vector3.UP,-angle-PI.toFloat()/2f)
     }
-    private fun place(card: Card, position: Vector3, rotation: Quat) {
-        if (!cardSafe(card,position,rotation)) { unsafe = true; card.owner.enabled = false; return }
+    private fun place(card: Card, position: Vector3, rotation: Quat):Boolean {
+        if (!cardSafe(card,position,rotation)) {
+            if(ExperiencePolicy.cardCollisionBlocksSession(vm.state.value.ritual.phase)) unsafe=true
+            card.owner.enabled=false
+            return false
+        }
         card.position = position
         card.rotation = rotation
         card.owner.components.get<TransformComponent>()!!.apply { this.position = root.convertPositionFrom(position,null); quaternion = root.convertRotationFrom(rotation,null) }
+        return true
     }
     private fun animate(card: Card, position: Vector3, rotation: Quat, t: Float) {
         val start = transitionPositions[card.id] ?: position
