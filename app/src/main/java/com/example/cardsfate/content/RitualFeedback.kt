@@ -68,8 +68,8 @@ internal class RitualFeedback(private val root:Entity) {
         }
         if(relations && focus in 0..2) {
             positions.indices.filter { it!=focus }.forEachIndexed { i,k ->
-                val a=positions[focus]+yaw.rotateVector(Vector3(0f,-.13f,0f))
-                val b=positions[k]+yaw.rotateVector(Vector3(0f,-.13f,0f))
+                val a=positions[focus]+yaw.rotateVector(Vector3(0f,-.21f,0f))
+                val b=positions[k]+yaw.rotateVector(Vector3(0f,-.21f,0f))
                 if((0..16).all { step -> safe(a+(b-a)*(step/16f),.003f) })
                     show(lines[i],(a+b)*.5f,yaw*Quat(Vector3(0f,0f,1f),PI.toFloat()/2f),Vector3(1f,(b-a).length(),1f))
             }

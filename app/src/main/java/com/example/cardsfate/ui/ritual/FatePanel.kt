@@ -129,9 +129,11 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                     if(phase == RitualPhase.SUMMARY) {
                         body(local("本次解读已完成","Reading complete"))
                         action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
+                    } else if(ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
+                        body(local("当前牌解读完成后，再翻开下一张。","Reveal the next card after the current narration finishes."))
                     } else if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
-                        body(local("注视下一张牌并短捏，或用指尖轻点，即可翻牌；翻开后保持原位。",
-                            "Look at the next card and briefly pinch, or tap with your fingertip to reveal it. Revealed cards stay in place."))
+                        body(local("注视下一张牌并捏合，或用指尖轻点，即可翻牌；翻开后保持原位。",
+                            "Look at the next card and pinch, or tap with your fingertip to reveal it. Revealed cards stay in place."))
                     }
                 }
 

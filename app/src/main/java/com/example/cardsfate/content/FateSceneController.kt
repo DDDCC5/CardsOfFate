@@ -67,6 +67,9 @@ class FateSceneController(
     private data class RevealTurn(val index:Int,val cardId:String,val started:Float)
     private var revealTurn:RevealTurn?=null
     private val revealTap=StackTapGate()
+    private val readingPinch=StackTapGate()
+    private var previousReadingTips=emptyMap<Boolean,Vector3>()
+    private var readingTipSample=-1L
     private var stackTouchDown=false
     private val readingTouches=mutableSetOf<String>()
     private val stackTap = StackTapGate()
@@ -545,6 +548,9 @@ class FateSceneController(
         cardAudio?.stop()
         stackTap.reset()
         revealTap.reset()
+        readingPinch.reset()
+        previousReadingTips=emptyMap()
+        readingTipSample=-1L
         stackTouchDown=false
         readingTouches.clear()
         leftPinchDown=false
@@ -676,6 +682,10 @@ class FateSceneController(
     private fun processCardInput(input:InputSnapshot,left:HandPose?,right:HandPose?) {
         val state=vm.state.value.ritual
         if(state.suspension!=null || state.phase !in setOf(RitualPhase.DRAW,RitualPhase.READING,RitualPhase.SUMMARY)) return
+        if(state.phase==RitualPhase.READING || state.phase==RitualPhase.SUMMARY) {
+            processReadingInput(input,left,right,state)
+            return
+        }
         val held=grip
         val hand=if(held?.handLeft==true) left else if(held!=null) right else null
         if(held!=null && hand==null) {
@@ -781,17 +791,48 @@ class FateSceneController(
         } else { revealTap.reset();readingTouches.clear() }
     }
 
+    /** Reading cards are buttons, not draggable objects: activate on pinch-down, independent of duration. */
+    private fun processReadingInput(input:InputSnapshot,left:HandPose?,right:HandPose?,state:RitualState) {
+        val candidates=interactionCards(state)
+        val pressed=leftPinchDown || rightPinchDown
+        val pinchTarget=if(leftPinchDown) pick(input,left,candidates,true) else if(rightPinchDown) pick(input,right,candidates,true) else null
+        val acceptedPinch=readingPinch.update(pressed,pinchTarget!=null,input.handsReceivedAtMs)
+        val currentTips=buildMap<Boolean,Vector3> {
+            left?.get(Index.INDEX_TIP)?.position?.let { put(true,it) }
+            right?.get(Index.INDEX_TIP)?.position?.let { put(false,it) }
+        }
+        val freshPrevious=readingTipSample>=0 && input.handsReceivedAtMs-readingTipSample in 1L..250L
+        val touching=candidates.filter { card -> currentTips.any { (side,tip) ->
+            val inverse=card.rotation.conjugate()
+            val current=point(inverse.rotateVector(tip-card.position)-card.boundsCenter)
+            val previous=if(freshPrevious) previousReadingTips[side]?.let { point(inverse.rotateVector(it-card.position)-card.boundsCenter) } else null
+            ReadingCardTouch.hit(previous,current,point(card.half),card.id in readingTouches)
+        } }
+        previousReadingTips=currentTips;readingTipSample=input.handsReceivedAtMs
+        readingTouches.clear();readingTouches.addAll(touching.map { it.id })
+        val touchTarget=touching.minByOrNull { card -> currentTips.values.minOfOrNull { (it-card.position).length() } ?: Float.MAX_VALUE }
+        val acceptedTouch=revealTap.update(touchTarget!=null,touchTarget!=null,input.handsReceivedAtMs)
+        val target=if(acceptedPinch) pinchTarget else if(acceptedTouch) touchTarget else null
+        if(target==null || revealTurn!=null) return
+        val index=state.selectedCards.indexOfFirst { it.cardId==target.id }
+        if(index in 0 until state.revealedCount) vm.focusRevealedCard(index)
+        else if(index==state.nextRevealIndex && !state.narrationPlaying && state.revealedCount==index) startReveal(index,target)
+    }
+
     private fun playCardEffect(id:String,card:Card) {
         if(runCatching { cardAudio?.play(id,card.id,card.position)==true }.getOrDefault(false)) return
         vm.playEffect(id)
     }
 
-    private fun pick(input: InputSnapshot, hand: HandPose?, candidates: List<Card> = cards.values.toList()): Card? {
+    private fun pick(input: InputSnapshot, hand: HandPose?, candidates: List<Card> = cards.values.toList(), allowHandRayFallback:Boolean=false): Card? {
         if (hand == null) return null
         val tip = hand[Index.INDEX_TIP].position
         candidates.filter { it.owner.enabled }.minByOrNull { (it.position - tip).length() }
             ?.takeIf { (it.position - tip).length() < .065f }?.let { return it }
-        if (input.gazeAvailable) return gazeHit(input, candidates)
+        if (input.gazeAvailable) {
+            gazeHit(input,candidates)?.let { return it }
+            if(!allowHandRayFallback) return null
+        }
         val segment = tip - hand[Index.INDEX_PROXIMAL].position
         if (segment.length() < .001f) return null
         return rayHit(tip, segment.normalize(), candidates)
@@ -958,7 +999,7 @@ class FateSceneController(
             }
             val offset=when(id) {
                 "reading" -> ViewLayout.readingPanel
-                "slot-0","slot-1","slot-2" -> CardFanLayout.slotOffset(id.last().digitToInt()).let { SpacePoint(it.x,it.y-.07,it.z) }
+                "slot-0","slot-1","slot-2" -> CardFanLayout.labelOffset(id.last().digitToInt())
                 "status" -> SpacePoint(0.0,.32,-.70)
                 "main" -> if(ui.ritual.phase in setOf(RitualPhase.DRAW,RitualPhase.SPREAD)) ViewLayout.drawGuidance else ViewLayout.mainPanel
                 else -> ViewLayout.mainPanel

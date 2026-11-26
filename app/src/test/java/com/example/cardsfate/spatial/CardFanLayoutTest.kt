@@ -15,6 +15,19 @@ class CardFanLayoutTest {
         assertEquals(.56,right.x-left.x+CardFanLayout.CARD_WIDTH_M*kotlin.math.cos(kotlin.math.PI/6)+CardFanLayout.CARD_HEIGHT_M*kotlin.math.sin(kotlin.math.PI/6),1e-9)
         assertEquals(-CardFanLayout.roll(0),CardFanLayout.roll(12),1e-9)
     }
+    @Test fun labelsHaveClearanceBelowCardsAndAboveTheFan() {
+        for(slot in 0..2) {
+            val card=CardFanLayout.slotOffset(slot);val label=CardFanLayout.labelOffset(slot)
+            assertEquals(card.x,label.x,0.0);assertEquals(card.z,label.z,0.0)
+            assertTrue(card.y-CardFanLayout.CARD_HEIGHT_M/2-label.y>=.069)
+        }
+        val highestFan=(0..12).maxOf { index ->
+            val halfHeight=kotlin.math.abs(kotlin.math.sin(CardFanLayout.roll(index)))*CardFanLayout.CARD_WIDTH_M/2+
+                kotlin.math.abs(kotlin.math.cos(CardFanLayout.roll(index)))*CardFanLayout.CARD_HEIGHT_M/2
+            CardFanLayout.offset(index).y+halfHeight
+        }
+        assertTrue(CardFanLayout.labelOffset(1).y-highestFan>.02)
+    }
     @Test fun cardCenterMustEnterAnEmptySlot() {
         assertEquals(0,CardFanLayout.emptySlotAt(SpacePoint(-.15,.14,0.0),emptySet()))
         assertNull(CardFanLayout.emptySlotAt(SpacePoint(-.15,.14,0.0),setOf(0)))

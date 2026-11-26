@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-26",
+  "version": "1.1.2",
+  "versionCode": 11,
+  "package": "com.example.cardsfate",
+  "apkSha256": "054ccf274a4a0f68eaa6370c63c073897e4ced20f9db6fdf3700423d91f84e97",
+  "apkBytes": 452455686,
+  "tests": {
+    "tests": 89,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "buildPassed": true,
+  "packageCheckPassed": true,
+  "iconCheckPassed": true,
+  "uiStylePassed": true,
+  "deviceInstalled": true,
+  "deviceLaunchPassed": true,
+  "launchCrashBufferEmpty": true,
+  "realUserRevealAndLabelVerified": false,
+  "publishedToGitHub": false,
+  "realDeviceFirstCardRevealObserved": true,
+  "realDeviceAllThreeRevealsObserved": false
+}
