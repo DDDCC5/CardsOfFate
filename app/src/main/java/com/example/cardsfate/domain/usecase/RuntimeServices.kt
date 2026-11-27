@@ -13,6 +13,12 @@ interface RuntimeServices {
     fun appendHistory(record: HistoryRecord): Result<Unit>
     fun playSpeech(sequenceIds: List<String>, onComplete: () -> Unit, onError: (Throwable) -> Unit)
     fun playEffect(id: String): Result<Unit>
+    fun loadDaily():Result<List<DailyRecord>> = Result.failure(IllegalStateException("Daily storage unavailable"))
+    fun saveDaily(records:List<DailyRecord>):Result<Unit> = Result.failure(IllegalStateException("Daily storage unavailable"))
+    fun loadComfort():Result<ComfortPreference> = Result.success(ComfortPreference())
+    fun saveComfort(preference:ComfortPreference):Result<Unit> = Result.failure(IllegalStateException("Comfort storage unavailable"))
+    fun pauseSpeech() { stopSpeech() }
+    fun resumeSpeech():Boolean = false
     fun stopSpeech()
     fun release()
 }

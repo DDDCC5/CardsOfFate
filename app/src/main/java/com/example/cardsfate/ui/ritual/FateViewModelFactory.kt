@@ -28,7 +28,7 @@ object FateViewModelFactory : androidx.lifecycle.ViewModelStoreOwner {
         }
         val app = context.applicationContext
         val services = LocalRuntimeServices(AssetCardRepository(app.assets),
-            AtomicHistoryRepository(File(app.filesDir, "cards-fate-history.json")), AudioPlayer(app))
+            AtomicHistoryRepository(File(app.filesDir, "cards-fate-history.json")), AudioPlayer(app), ExperienceRepository(File(app.filesDir,"cards-fate-experience.json")))
         return FateViewModel(services, language).also { processViewModel = it }
     }
 
@@ -44,6 +44,7 @@ private class LocalRuntimeServices(
     private val cards: CardRepository,
     private val history: HistoryRepository,
     private val audio: AudioPlayer,
+    private val experience:ExperienceRepository,
 ) : RuntimeServices {
     override fun catalog() = cards.cards()
     override fun title(cardId: String, language: ReadingLanguage) = cards.title(cardId, language)
@@ -55,6 +56,12 @@ private class LocalRuntimeServices(
     override fun playSpeech(sequenceIds: List<String>, onComplete: () -> Unit, onError: (Throwable) -> Unit) =
         audio.playSummary(sequenceIds, onComplete, onError)
     override fun playEffect(id: String) = audio.playEffect(id)
+    override fun loadDaily()=experience.loadDaily()
+    override fun saveDaily(records:List<DailyRecord>)=experience.saveDaily(records)
+    override fun loadComfort()=experience.loadComfort()
+    override fun saveComfort(preference:ComfortPreference)=experience.saveComfort(preference)
+    override fun pauseSpeech()=audio.pauseSpeech()
+    override fun resumeSpeech()=audio.resumeSpeech()
     override fun stopSpeech() = audio.stopSpeech()
     override fun release() = audio.release()
 }

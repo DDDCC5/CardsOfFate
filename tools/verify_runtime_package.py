@@ -28,5 +28,11 @@ with zipfile.ZipFile(apk) as z:
         assert z.read(f'assets/models/{model}.glb')[:4] == b'glTF'
     for effect in ('select','flip','cancel'):
         assert f'assets/audio/sfx/{effect}.wav' in entries
+    daily=json.loads(z.read('assets/data/daily-narration.json'))['units']
+    assert len(daily)==314 and len({u['id'] for u in daily})==314
+    assert sum(u['kind']=='daily' for u in daily)==312
+    for u in daily:
+        assert 'assets/audio/narration/'+u['id']+'.ogg' in entries
+        assert u['text'].strip()
     assert not any('/.venv/' in n or n.endswith('.blend') for n in entries)
-    print(json.dumps({'apk':str(apk.resolve()),'cards':78,'localizedDecks':2,'narrationClips':len(units),'modelAssets':13,'interactionEffectModels':4,'passed':True},ensure_ascii=False,indent=2))
+    print(json.dumps({'apk':str(apk.resolve()),'cards':78,'localizedDecks':2,'narrationClips':len(units)+len(daily),'dailyNarrationClips':len(daily),'modelAssets':13,'interactionEffectModels':4,'passed':True},ensure_ascii=False,indent=2))

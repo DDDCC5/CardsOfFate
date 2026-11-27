@@ -12,6 +12,8 @@ class AudioPlayer(context: Context) {
     private var effect: MediaPlayer? = null
     private var generation = 0L
     private var released = false
+    private var speechPrepared=false
+    private var speechPaused=false
     private val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_GAME)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
@@ -32,8 +34,9 @@ class AudioPlayer(context: Context) {
                 val path = narrationPath(ids[index])
                 val player = createPlayer(path)
                 speech = player
+                speechPrepared=false
                 player.setOnPreparedListener { current ->
-                    if (generation == token && speech === current && !released) current.start()
+                    if (generation == token && speech === current && !released) { speechPrepared=true;if(!speechPaused) current.start() }
                 }
                 player.setOnCompletionListener { current ->
                     if (generation == token && speech === current && !released) {
@@ -81,9 +84,22 @@ class AudioPlayer(context: Context) {
         }
     }
 
+    fun pauseSpeech() {
+        checkMain();speechPaused=true
+        if(speechPrepared) speech?.let { if(it.isPlaying) it.pause() }
+    }
+
+    /** Preparing players remember resume intent; prepared players retain their exact playback position. */
+    fun resumeSpeech():Boolean {
+        checkMain();val player=speech ?: return false
+        speechPaused=false
+        return runCatching { if(speechPrepared && !player.isPlaying) player.start();true }.getOrDefault(false)
+    }
+
     fun stopSpeech() {
         checkMain()
         generation++
+        speechPrepared=false;speechPaused=false
         val previous = speech
         speech = null
         previous?.let(::dispose)

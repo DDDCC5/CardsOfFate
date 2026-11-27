@@ -2,6 +2,8 @@
 
 PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，系统为中文时显示「命运之牌」，其他语言显示「Cards of Fate」，运行界面按语言单独显示。
 
+**本分支：1.2.0 调试版（versionCode 12）。** 新增每日一张、舒适位置预览/确认、旁白暂停继续与跳过、三牌返回开始页、可翻提示与局部光效。101项测试及构建通过，已覆盖安装至PICO；完整手势与舒适度实测待用户验收。[本轮说明](docs/releases/1.2.0.md)。本地APK：`delivery/debug/cards-fate-1.2.0-debug.apk`，尚未推送GitHub。
+
 **当前公开版本：1.1.2 调试预览版（versionCode 11）。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.1.2-debug/cards-fate-1.1.2-debug.apk) · [版本说明](docs/releases/1.1.2.md) · [投稿资料](docs/submission/填写指南.md)
 
 近身牌扇支持手势抽取与落位，增加拖尾、落位亮光、翻牌符文和关联线。解读阶段使用独立捏合确认和快速指尖点按检测，解读牌保持固定；牌位标签与牌面拉开间距。89项单元测试和构建通过，已安装至真实PICO并记录第一张牌成功翻开；完整三张翻牌和标签视觉效果仍待用户验收。

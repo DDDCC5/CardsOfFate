@@ -10,6 +10,8 @@ data class RitualResult(val sessionNumber: Long, val cards: List<DrawnCard>, val
 /** Keep this state in the process owner; do not restore safetyAccepted after process death. */
 data class RitualState(
     val phase: RitualPhase = RitualPhase.LOGO,
+    val mode:RitualMode = RitualMode.THREE,
+    val dailyCard:DrawnCard? = null,
     val safetyAccepted: Boolean = false,
     val sessionNumber: Long = 0,
     val deck: List<DrawnCard> = emptyList(),
@@ -23,6 +25,8 @@ data class RitualState(
     val suspension: SuspensionReason? = null,
     val result: RitualResult? = null,
 ) {
+    val targetCount:Int get()=if(mode==RitualMode.DAILY) 1 else 3
+
     // Older in-process snapshots assigned cards in left-to-right selection order.
     fun slotForDeckIndex(deckIndex: Int): Int? = selectedIndices.indexOf(deckIndex)
         .takeIf { it >= 0 }?.let { selectedSlots.getOrNull(it) ?: it }
@@ -38,6 +42,7 @@ data class RitualState(
 sealed interface RitualEvent {
     data object LogoFinished : RitualEvent
     data object AcceptSafety : RitualEvent
+    data class StartDaily(val card:DrawnCard,val completed:Boolean) : RitualEvent
     data object SystemsReady : RitualEvent
     data object ContemplationFinished : RitualEvent
     data object GatherFinished : RitualEvent

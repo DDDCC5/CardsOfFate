@@ -37,7 +37,7 @@ internal class RitualFeedback(private val root:Entity) {
     fun land(position:Vector3,rotation:Quat,now:Float) { landing=Pulse(position,rotation,now) }
     fun reveal(position:Vector3,rotation:Quat,now:Float) { turning=Pulse(position,rotation,now) }
     fun frame(now:Float,relations:Boolean,positions:List<Vector3>,focus:Int,yaw:Quat,
-              showTargets:Boolean,occupied:Set<Int>,safe:(Vector3,Float)->Boolean) {
+              showTargets:Boolean,occupied:Set<Int>,crystal:Vector3?,safe:(Vector3,Float)->Boolean) {
         hide()
         while(trail.firstOrNull()?.let { now-it.second>.52f }==true) trail.removeFirst()
         trail.forEachIndexed { i,(p,t) ->
@@ -55,7 +55,7 @@ internal class RitualFeedback(private val root:Entity) {
             } else landing=null
         }
         turning?.let { pulse ->
-            val t=(now-pulse.start)/.65f
+            val t=(now-pulse.start)/.85f
             if(t in 0f..1f) runes.forEachIndexed { i,entity ->
                 val fade=sin(((t-i*.04f).coerceIn(0f,1f))*PI.toFloat()).coerceAtLeast(0f)
                 if(fade>.05f) {
@@ -64,7 +64,10 @@ internal class RitualFeedback(private val root:Entity) {
                     val p=pulse.position+pulse.rotation.rotateVector(local)
                     if(safe(p,.022f)) show(entity,p,pulse.rotation*Quat(Vector3(0f,0f,1f),angle-PI.toFloat()/2f),Vector3(fade))
                 }
-            } else turning=null
+            }
+            val glow=(now-pulse.start)/1.1f
+            if(glow in 0f..1f && crystal!=null && safe(crystal,.012f)) show(points.last(),crystal,Quat.identity(),Vector3(1f+sin(glow*PI.toFloat())*1.25f))
+            if(glow>1f) turning=null
         }
         if(relations && focus in 0..2) {
             positions.indices.filter { it!=focus }.forEachIndexed { i,k ->

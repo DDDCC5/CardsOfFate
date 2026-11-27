@@ -29,7 +29,11 @@ class AssetCardRepository(assets: AssetManager) : CardRepository {
             CatalogCard(it.getString("id"), it.getString("zh"), it.getString("en"))
         } }
         require(catalog.size == 78 && catalog.map { it.id }.distinct().size == 78) { "Invalid card catalog" }
-        val rawUnits = JSONObject(assets.open("data/narration.json").bufferedReader().use { it.readText() }).getJSONArray("units")
+        val rawUnits = JSONArray()
+        listOf("data/narration.json","data/daily-narration.json").forEach { path ->
+            val units=JSONObject(assets.open(path).bufferedReader().use{it.readText()}).getJSONArray("units")
+            for(i in 0 until units.length()) rawUnits.put(units.getJSONObject(i))
+        }
         val parsed = (0 until rawUnits.length()).map { i -> rawUnits.getJSONObject(i).let {
             val id = it.getString("id")
             require(id.matches(Regex("[a-z0-9/-]+")) && ".." !in id) { "Invalid narration ID" }

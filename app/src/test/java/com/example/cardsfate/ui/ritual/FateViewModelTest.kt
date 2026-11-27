@@ -13,6 +13,21 @@ class FateViewModelTest {
         var failSave = false
         var released = false
         var stopCount = 0
+        var dailyRecords=emptyList<DailyRecord>()
+        var dailySaveFail=false
+        var dailySaveCount=0
+        var supportResume=false
+        var pauseCount=0
+        var comfortSaves=0
+        override fun saveComfort(preference:ComfortPreference):Result<Unit> {comfortSaves++;return Result.success(Unit)}
+        override fun loadDaily()=Result.success(dailyRecords)
+        override fun saveDaily(records:List<DailyRecord>):Result<Unit> {
+            dailySaveCount++
+            if(dailySaveFail) return Result.failure(IllegalStateException("full"))
+            dailyRecords=records;return Result.success(Unit)
+        }
+        override fun pauseSpeech(){pauseCount++}
+        override fun resumeSpeech()=supportResume
         override fun catalog() = standardCardIds().map { CatalogCard(it, "中文$it", "English $it") }
         override fun title(cardId: String, language: ReadingLanguage) = if (language == ReadingLanguage.ZH) "中文$cardId" else "English $cardId"
         override fun narration(id: String) = NarrationUnit(id, "text:$id", "audio/$id.ogg")
@@ -428,4 +443,92 @@ class FateViewModelTest {
         assertEquals(listOf(record),services.stored)
     }
 
+
+    @Test fun dailyCompletesOnlyOneCardAndNeverWritesThreeCardHistory() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.startDaily();val record=model.state.value.dailyRecord!!
+        model.onEvent(RitualEvent.ContemplationFinished)
+        model.onEvent(RitualEvent.RevealCard(0));val speech=services.speeches.last()
+        model.skipNarration();speech.complete()
+        assertEquals(RitualPhase.SUMMARY,model.state.value.ritual.phase)
+        assertTrue(services.stored.isEmpty());assertTrue(services.dailyRecords.single().completed)
+        model.returnToStart();model.startDaily()
+        assertEquals(record.card,model.state.value.dailyRecord!!.card)
+        assertEquals(RitualPhase.SUMMARY,model.state.value.ritual.phase)
+    }
+    @Test fun userPausePreservesPlaybackAndSkipCompletesExactlyOnce() {
+        val services=LocalServices().also{it.supportResume=true};val model=vm(services)
+        reading(model);model.onEvent(RitualEvent.RevealCard(0))
+        val speech=services.speeches.last();val count=services.speeches.size
+        model.pauseNarration();assertTrue(model.state.value.speechPaused)
+        model.resumeAudio();assertTrue(model.state.value.speechPaused)
+        model.resumeNarration();assertEquals(count,services.speeches.size)
+        model.skipNarration();speech.complete();model.skipNarration()
+        assertEquals(1,model.state.value.ritual.nextRevealIndex)
+        assertFalse(model.state.value.ritual.narrationPlaying)
+    }
+    @Test fun exitInvalidatesSpeechAndDoesNotSaveAnIncompleteReading() {
+        val services=LocalServices();val model=vm(services)
+        reading(model);model.onEvent(RitualEvent.RevealCard(0));val speech=services.speeches.last()
+        model.returnToStart();speech.complete()
+        assertEquals(RitualPhase.SYSTEMS,model.state.value.ritual.phase)
+        assertTrue(services.stored.isEmpty());assertEquals(0,model.state.value.ritual.revealedCount)
+    }
+    @Test fun dailyCompletionSaveFailureRetriesTheSameResult() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.startDaily();model.onEvent(RitualEvent.ContemplationFinished);model.onEvent(RitualEvent.RevealCard(0))
+        services.dailySaveFail=true;model.skipNarration()
+        assertEquals(RitualPhase.READING,model.state.value.ritual.phase);assertNotNull(model.state.value.saveError)
+        val card=model.state.value.dailyRecord!!.card
+        services.dailySaveFail=false;model.retrySave()
+        assertEquals(RitualPhase.SUMMARY,model.state.value.ritual.phase);assertEquals(card,services.dailyRecords.single().card)
+    }
+
+    @Test fun dailyLanguageChangeKeepsCardAndDoesNotRequestThreeCardSummary() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.startDaily();model.onEvent(RitualEvent.ContemplationFinished);model.onEvent(RitualEvent.RevealCard(0));model.skipNarration()
+        val record=model.state.value.dailyRecord
+        model.setLanguage(ReadingLanguage.ZH)
+        assertNull(model.state.value.audioError);assertEquals(record,model.state.value.dailyRecord)
+        assertTrue(model.state.value.readingDisplayText!!.contains("daily/zh/"))
+    }
+    @Test fun comfortCannotCommitWithoutValidationAndCancelRestoresSavedPreference() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.openComfort();model.setComfort(ComfortPreference(.52,.06));model.confirmComfort()
+        assertTrue(model.state.value.comfortOpen);assertEquals(.42,model.state.value.comfort.distance,0.0)
+        model.setComfortValidation(false);model.confirmComfort();assertTrue(model.state.value.comfortOpen)
+        model.cancelComfort();assertEquals(model.state.value.comfort,model.state.value.comfortDraft)
+    }
+
+    @Test fun failedDailyCompletionDoesNotRetryDiskWritesEveryFrame() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.startDaily();model.onEvent(RitualEvent.ContemplationFinished);model.onEvent(RitualEvent.RevealCard(0))
+        services.dailySaveFail=true;model.skipNarration();val attempts=services.dailySaveCount
+        repeat(100){ready(model)}
+        assertEquals(attempts,services.dailySaveCount)
+    }
+
+    @Test fun comfortValidationIsInvalidatedWhenSpaceTrackingIsLost() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.openComfort();model.setComfortValidation(true)
+        model.setRuntimeStatus(true,false,true,false,false)
+        model.confirmComfort()
+        assertNull(model.state.value.comfortValidation);assertEquals(0,services.comfortSaves)
+        assertTrue(model.state.value.comfortOpen)
+    }
+
+    @Test fun homeOverlaysRejectStaleStartRequests() {
+        val services=LocalServices();val model=vm(services)
+        ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
+        model.toggleHistory();model.startDaily()
+        assertEquals(RitualPhase.SYSTEMS,model.state.value.ritual.phase)
+        model.toggleHistory();model.openComfort();model.onEvent(RitualEvent.SystemsReady)
+        assertEquals(RitualPhase.SYSTEMS,model.state.value.ritual.phase)
+    }
 }

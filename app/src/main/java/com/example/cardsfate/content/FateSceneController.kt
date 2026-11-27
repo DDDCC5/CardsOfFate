@@ -92,6 +92,15 @@ class FateSceneController(
     private val deferredReturns=mutableMapOf<String,Grip>()
     private var fanOpenedAt=0f
     private var fanPage=-1
+    private var sceneSession=-1L
+    private var cueMaterial:UnlitMaterial?=null
+    private var comfortWasOpen=false
+    private var comfortDraft:ComfortPreference?=null
+    private var comfortRoomRevision=-1L
+    private var comfortRecenter=-1L
+    private var comfortCommitAtOpen=0L
+    private var beforeComfortOrigin:Vector3?=null
+    private var beforeComfortYaw=Quat.identity()
     private var feedback:RitualFeedback?=null
     private var cardAudio:CardSpatialAudio?=null
     private val hiddenOrbitCards=mutableSetOf<String>()
@@ -186,13 +195,14 @@ class FateSceneController(
             resources += mesh
             resources += material
             tint = Entity().apply { enabled = false; components.set(ModelComponent(mesh, material)); root.addChild(this) }
-            val gold = UnlitMaterial.create().apply {
-                setBaseColor(Color4(.95f, .69f, .25f, 1f))
+            val gold = UnlitMaterial.create(BlendingMode.TRANSPARENT).apply {
+                setBaseColor(Color4(200/255f, 167/255f, 106/255f, 1f))
                 setDepthTest(true)
                 setDepthWrite(true)
             }
             val horizontal = MeshResource.createBox(Vector3(deckHalf.x*2f+.004f, .0018f, .001f))
             val vertical = MeshResource.createBox(Vector3(.0018f, deckHalf.y*2f+.004f, .001f))
+            cueMaterial=gold
             resources += gold
             resources += horizontal
             resources += vertical
@@ -275,12 +285,18 @@ class FateSceneController(
             vm.setRuntimeStatus(false, false, input.handsAvailable, false, input.gazeAvailable)
             return
         }
+        if(sceneSession!=vm.state.value.ritual.sessionNumber) {
+            sceneSession=vm.state.value.ritual.sessionNumber
+            grip=null;returns.clear();deferredReturns.clear();drawFlights.clear();revealTurn=null
+            resetPressInputs();unsafe=false;rejectionLogged=false;interactionHead=null;phase=null
+            cards.values.forEach{it.owner.enabled=false;it.face.enabled=false}
+        }
         val environment = space.snapshot()
         frameEnvironment = environment
         if(environment.ready) {
             // Validate the geometry actually on screen, not a button's next requested phase.
             // A plane update and "ready" press can occur between two rendered frames.
-            if(!ExperiencePolicy.cardCollisionBlocksSession(phase ?: vm.state.value.ritual.phase)) {
+            if(vm.state.value.comfortOpen || !ExperiencePolicy.cardCollisionBlocksSession(phase ?: vm.state.value.ritual.phase)) {
                 cards.values.filter { it.owner.enabled && !cardSafe(it,it.position,it.rotation,"orbit-update") }.forEach {
                     it.owner.enabled=false;it.face.enabled=false;hiddenOrbitCards+=it.id
                 }
@@ -344,7 +360,7 @@ class FateSceneController(
             controllerSampleTime = input.controllersReceivedAtMs
         }
         val controllerActive = input.sampledAtMs - controllerMovedAt < 1000L || (input.controllersAvailable && !input.handsAvailable)
-        val safe = orbitRadius != null && environment.ready && !unsafe && input.hmdAvailable
+        val safe = (orbitRadius != null || vm.state.value.ritual.mode==RitualMode.DAILY || vm.state.value.comfortOpen) && environment.ready && !unsafe && input.hmdAvailable
         val diagnostic = "phase=${vm.state.value.ritual.phase} scene=$loaded space=$safe planes=${environment.systemAnchorCount} ready=${environment.ready} radius=$orbitRadius lift=$layoutLift stack=$stackCenter hands=${input.handsAvailable}/${input.handsSupport} gaze=${input.gazeAvailable}/${input.eyesSupport} controllers=$controllerActive drawn=${vm.state.value.ritual.selectedIndices.size} revealed=${vm.state.value.ritual.revealedCount}"
         if (diagnostic != lastDiagnostic && input.sampledAtMs - diagnosticAt > 2000L) {
             Log.i(TAG, diagnostic)
@@ -363,9 +379,32 @@ class FateSceneController(
         }
         val ui = vm.state.value
         val state = ui.ritual
+        if(ui.comfortOpen) {
+            if(!comfortWasOpen) {
+                beforeComfortOrigin=frontOrigin;beforeComfortYaw=frontYaw;comfortCommitAtOpen=ui.comfortCommit
+                captureFront(input);comfortDraft=null
+            }
+            if(ui.recenterRequest!=comfortRecenter) { if(comfortWasOpen) captureFront(input);comfortRecenter=ui.recenterRequest;comfortDraft=null }
+            comfortWasOpen=true
+            if(comfortDraft!=ui.comfortDraft || comfortRoomRevision!=environment.revision || ui.comfortValidation==null) {
+                comfortDraft=ui.comfortDraft;comfortRoomRevision=environment.revision
+                vm.setComfortValidation(chooseInteractionLayout(state,input,false))
+            }
+            cards.values.forEach{it.owner.enabled=false;it.face.enabled=false}
+            if(vm.state.value.comfortValidation==true) cards.values.take(3).forEachIndexed { index,card ->
+                card.owner.enabled=true;place(card,stackCenter+interactionYaw.rotateVector(vector(CardFanLayout.slotOffset(index))),readingBackRotation())
+            }
+            decorations.forEach{it.enabled=false};resetPressInputs();updatePanels();return
+        } else if(comfortWasOpen) {
+            if(ui.comfortCommit==comfortCommitAtOpen) {
+                frontOrigin=beforeComfortOrigin;frontYaw=beforeComfortYaw
+                frontOrigin?.let { origin -> frontAnchor.components.get<TransformComponent>()!!.apply { position=root.convertPositionFrom(origin,null);quaternion=root.convertRotationFrom(frontYaw,null) } }
+            }
+            comfortWasOpen=false;cards.values.forEach{it.owner.enabled=false};interactionHead=null
+        }
         if (phase != state.phase) {
             if(state.phase in setOf(RitualPhase.SYSTEMS,RitualPhase.CONTEMPLATE)) captureFront(input)
-            val needsInteraction=state.phase==RitualPhase.GATHER || (interactionHead==null && state.phase in
+            val needsInteraction=state.phase==RitualPhase.GATHER || (state.mode==RitualMode.DAILY && state.phase in setOf(RitualPhase.READING,RitualPhase.SUMMARY)) || (interactionHead==null && state.phase in
                 setOf(RitualPhase.DRAW,RitualPhase.SPREAD,RitualPhase.READING,RitualPhase.SUMMARY))
             val gatherPrepared=needsInteraction && phase!=null && state.phase==RitualPhase.GATHER
             if(needsInteraction && !chooseInteractionLayout(state,input,gatherPrepared)) {
@@ -449,6 +488,12 @@ class FateSceneController(
         cards.values.forEach { it.owner.enabled = true }
         when (state.phase) {
             RitualPhase.CONTEMPLATE -> {
+                if(state.mode==RitualMode.DAILY) {
+                    cards.values.forEach { card ->
+                        card.owner.enabled=card.id==state.dailyCard?.cardId;card.face.enabled=false
+                        if(card.owner.enabled) place(card,(frontOrigin ?: initialHead!!)+frontYaw.rotateVector(Vector3(0f,-.35f,-.52f)),frontYaw*Quat(Vector3.UP,PI.toFloat()))
+                    }
+                } else {
                 hiddenOrbitCards.clear()
                 cards.values.forEachIndexed { index, card ->
                     val clear=place(card, orbit(index, orbitRadius!!, ritualSeconds * PI.toFloat() / 90f),
@@ -457,6 +502,7 @@ class FateSceneController(
                     card.owner.enabled=clear && !ViewLayout.obstructsGuidance(point(view),card.half.length().toDouble())
                     card.face.enabled=card.owner.enabled
                     if(!card.owner.enabled) hiddenOrbitCards+=card.id
+                }
                 }
             }
             RitualPhase.GATHER -> {
@@ -535,9 +581,12 @@ class FateSceneController(
             cardAudio?.frame { cards[it]?.position }
             updateGazeFrame(input)
             val current=vm.state.value
-            feedback?.frame(ritualSeconds,current.ritual.revealedCount==3 && grip==null && returns.isEmpty(),
+            feedback?.frame(ritualSeconds,current.ritual.mode==RitualMode.THREE && current.ritual.revealedCount==3 && grip==null && returns.isEmpty(),
                 (0..2).map(::readingPosition),current.focusedReadingIndex ?: 0,interactionYaw,
-                current.ritual.phase==RitualPhase.DRAW,current.ritual.selectedIndices.mapNotNull(current.ritual::slotForDeckIndex).toSet()) { position,radius -> environment.isSafe(position,radius) }
+                current.ritual.phase==RitualPhase.DRAW,current.ritual.selectedIndices.mapNotNull(current.ritual::slotForDeckIndex).toSet(),
+                AtmosphereLayout.items.withIndex().firstOrNull{it.value.asset=="crystal"}?.let { (index,item) ->
+                    (frontOrigin ?: initialHead!!)+frontYaw.rotateVector(vector(item.position)+Vector3(0f,sin(ritualSeconds*.35f+index)*.025f,0f))
+                }) { position,radius -> environment.isSafe(position,radius) }
         }
     }
 
@@ -572,7 +621,7 @@ class FateSceneController(
         }
         if(!clear) { Log.w(TAG,"REJECT source=reveal-turn card=${card.id}");unsafe=true;return }
         revealTurn=RevealTurn(index,card.id,ritualSeconds)
-        feedback?.reveal(card.position,interactionYaw,ritualSeconds)
+        if(android.animation.ValueAnimator.areAnimatorsEnabled()) feedback?.reveal(card.position,interactionYaw,ritualSeconds)
         playCardEffect("flip",card)
         Log.i(TAG,"REVEAL_ACCEPT index=$index card=${card.id}")
     }
@@ -586,7 +635,7 @@ class FateSceneController(
             // Reading poses are authoritative, including any stale transient grab/return state.
             val turn=revealTurn?.takeIf { it.cardId==card.id }
             if(turn!=null) {
-                val t=((ritualSeconds-turn.started)/CardFlipMotion.DURATION_SECONDS).coerceIn(0f,1f)
+                val t=if(!android.animation.ValueAnimator.areAnimatorsEnabled()) 1f else ((ritualSeconds-turn.started)/CardFlipMotion.DURATION_SECONDS).coerceIn(0f,1f)
                 place(card,readingPosition(index),interactionYaw*Quat(Vector3.UP,CardFlipMotion.yaw(t.toDouble()).toFloat()))
                 card.face.enabled=true
                 if(t==1f && !unsafe) { revealTurn=null;vm.onEvent(RitualEvent.RevealCard(turn.index)) }
@@ -602,7 +651,7 @@ class FateSceneController(
     private fun stackSpacing()=maxOf(.0004f,deckHalf.z*2f+.00005f)
     private fun stackPosition(index:Int)=stackCenter+Vector3(0f,-index*stackSpacing(),0f)
     private fun readingBackRotation()=interactionYaw*Quat(Vector3.UP,PI.toFloat())
-    private fun readingPosition(index:Int)=stackCenter+interactionYaw.rotateVector(vector(CardFanLayout.slotOffset(index)))
+    private fun readingPosition(index:Int)=stackCenter+interactionYaw.rotateVector(vector(CardFanLayout.slotOffset(if(vm.state.value.ritual.mode==RitualMode.DAILY) 1 else index)))
     private fun fanPosition(index:Int)=stackCenter+interactionYaw.rotateVector(vector(CardFanLayout.offset(index%CardFanLayout.PAGE_SIZE)))
     private fun fanRotation(index:Int)=interactionYaw*Quat(Vector3(0f,0f,1f),CardFanLayout.roll(index%CardFanLayout.PAGE_SIZE).toFloat())*Quat(Vector3.UP,PI.toFloat())
 
@@ -863,9 +912,13 @@ class FateSceneController(
         frame.enabled=false
         val ui=vm.state.value
         val state=ui.ritual
-        if(ui.historyOpen || state.suspension!=null || !input.gazeAvailable) return
+        if(ui.historyOpen || ui.comfortOpen || state.suspension!=null) return
         if(grip!=null) return
-        val card=gazeHit(input,interactionCards(state)) ?: return
+        val candidates=interactionCards(state)
+        val gazed=gazeHit(input,candidates)
+        val next=if(state.phase==RitualPhase.READING && !state.narrationPlaying && revealTurn==null) state.selectedCards.getOrNull(state.nextRevealIndex)?.let{cards[it.cardId]} else null
+        val card=gazed ?: next ?: return
+        cueMaterial?.setBaseColor(Color4(200/255f,167/255f,106/255f,if(gazed!=null) .72f else if(!android.animation.ValueAnimator.areAnimatorsEnabled()) .35f else .35f+.13f*sin(ritualSeconds*2f*PI.toFloat()/2.2f)))
         frame.components.get<TransformComponent>()!!.apply {
             position=root.convertPositionFrom(card.position,null)
             quaternion=root.convertRotationFrom(card.rotation,null)
@@ -912,11 +965,12 @@ class FateSceneController(
         interactionHead=frontOrigin ?: pose.position
         interactionYaw=frontYaw
         val env=frameEnvironment ?: space.snapshot()
-        for(offset in ViewLayout.stackCandidates()) {
+        for(offset in listOf((if(vm.state.value.comfortOpen) vm.state.value.comfortDraft else vm.state.value.comfort).offset)) {
             stackCenter=interactionHead!!+interactionYaw.rotateVector(vector(offset))
-            val clearStack=(0 until 78).all { env.isCardSafe(stackPosition(it),stackRotation(),deckHalf,deckBoundsCenter) }
+            val isDaily=state.mode==RitualMode.DAILY && !vm.state.value.comfortOpen
+            val clearStack=isDaily || (0 until 78).all { env.isCardSafe(stackPosition(it),stackRotation(),deckHalf,deckBoundsCenter) }
             if(!clearStack) continue
-            val clearRead=(0..2).all { index ->
+            val clearRead=(0 until if(isDaily) 1 else 3).all { index ->
                 val position=readingPosition(index)
                 (0..20).all { step ->
                     env.isCardSafe(position,interactionYaw*Quat(Vector3.UP,CardFlipMotion.yaw(step/20.0).toFloat()),deckHalf,deckBoundsCenter)
@@ -926,7 +980,7 @@ class FateSceneController(
                         Quat.slerp(stackRotation(),readingBackRotation(),DrawFlightPath.rotationProgress(t.toDouble()).toFloat()),deckHalf,deckBoundsCenter)
                 } }
             }
-            val clearFan=(0 until CardFanLayout.PAGE_SIZE).all { index ->
+            val clearFan=isDaily || (0 until CardFanLayout.PAGE_SIZE).all { index ->
                 val position=fanPosition(index);val rotation=fanRotation(index)
                 (0..24).all { step -> val t=step/24f
                     env.isCardSafe(stackPosition(index)+(position-stackPosition(index))*t,Quat.slerp(stackRotation(),rotation,t),deckHalf,deckBoundsCenter)
@@ -992,7 +1046,7 @@ class FateSceneController(
             panel.enabled = if (ui.historyOpen) id == "history" else when (id) {
                 "main" -> !reading
                 "reading" -> reading
-                "slot-0","slot-1","slot-2" -> ui.spaceReady && ui.ritual.suspension==null && ui.ritual.phase in setOf(RitualPhase.DRAW,RitualPhase.SPREAD,RitualPhase.READING,RitualPhase.SUMMARY)
+                "slot-0","slot-1","slot-2" -> (ui.ritual.mode==RitualMode.THREE || id=="slot-1") && ui.spaceReady && ui.ritual.suspension==null && ui.ritual.phase in setOf(RitualPhase.DRAW,RitualPhase.SPREAD,RitualPhase.READING,RitualPhase.SUMMARY)
                 "status" -> !ui.sceneReady || !ui.spaceReady || !ui.handTrackingReady ||
                     ui.controllerActive || ui.audioError != null || ui.saveError != null
                 else -> false
@@ -1001,7 +1055,7 @@ class FateSceneController(
                 "reading" -> ViewLayout.readingPanel
                 "slot-0","slot-1","slot-2" -> CardFanLayout.labelOffset(id.last().digitToInt())
                 "status" -> SpacePoint(0.0,.32,-.70)
-                "main" -> if(ui.ritual.phase in setOf(RitualPhase.DRAW,RitualPhase.SPREAD)) ViewLayout.drawGuidance else ViewLayout.mainPanel
+                "main" -> if(ui.comfortOpen || ui.ritual.phase in setOf(RitualPhase.DRAW,RitualPhase.SPREAD)) ViewLayout.drawGuidance else ViewLayout.mainPanel
                 else -> ViewLayout.mainPanel
             }
             panel.components.get<TransformComponent>()!!.apply {

@@ -136,8 +136,13 @@ private fun FateSceneInstance(vm: FateViewModel, onReload: () -> Unit) {
                             val slotZh=slotUi.language==ReadingLanguage.ZH
                             val index=id.last().digitToInt()
                             Box(Modifier.width(90.dp),contentAlignment=androidx.compose.ui.Alignment.Center) {
-                                val keyword=if(index<slotUi.ritual.revealedCount) vm.keywordForSlot(index) else ""
-                                Text((if(slotZh) listOf("过去","现在","未来") else listOf("Past","Present","Future"))[index]+if(keyword.isBlank()) "" else "\n"+keyword,
+                                val keyword=if(slotUi.ritual.mode==com.example.cardsfate.domain.model.RitualMode.DAILY) "" else if(index<slotUi.ritual.revealedCount) vm.keywordForSlot(index) else ""
+                                val readingIndex=if(slotUi.ritual.mode==com.example.cardsfate.domain.model.RitualMode.DAILY) 0 else index
+                                val hint=if(slotUi.ritual.phase==com.example.cardsfate.domain.model.RitualPhase.READING && !slotUi.ritual.narrationPlaying &&
+                                    slotUi.ritual.suspension==null && readingIndex==slotUi.ritual.nextRevealIndex && readingIndex==slotUi.ritual.revealedCount)
+                                    (if(slotZh) "轻点翻开" else "Tap to reveal") else ""
+                                val position=if(slotUi.ritual.mode==com.example.cardsfate.domain.model.RitualMode.DAILY) (if(slotZh) "今日" else "Today") else (if(slotZh) listOf("过去","现在","未来") else listOf("Past","Present","Future"))[index]
+                                Text(listOf(position,keyword,hint).filter{it.isNotBlank()}.joinToString("\n"),
                                     style=PicoTheme.typography.titleMedium.copy(fontFamily=FateFont),color=FatePalette.ritualGold)
                             }
                         } else FateScreen(id, onRetrySpace = {
@@ -169,6 +174,6 @@ internal fun SceneDiagnostic(title: String, message: String?, retryLabel: String
     Column(Modifier.width(620.dp).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(title, style=PicoTheme.typography.headlineSmall.copy(fontFamily=FateFont), color=FatePalette.ritualGold)
         message?.let { Text(it, style=PicoTheme.typography.bodyLarge.copy(fontFamily=FateFont), color=FatePalette.ritualIvory) }
-        if (onRetry != null) FateButton(retryLabel, true, onRetry)
+        if (onRetry != null) FateButton(retryLabel, true, onClick = onRetry)
     }
 }

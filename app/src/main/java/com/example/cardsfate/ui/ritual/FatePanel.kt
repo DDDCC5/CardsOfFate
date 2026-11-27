@@ -15,6 +15,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import com.example.cardsfate.R
+import com.example.cardsfate.ui.ritual.components.ComfortControls
 import com.example.cardsfate.domain.model.*
 import com.example.cardsfate.ui.theme.*
 import com.pico.spatial.ui.design.Button
@@ -60,6 +63,10 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
         // Approved custom engraved panel artwork, rather than a system control skin.
         Image(frame, null, Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
         Column(Modifier.fillMaxSize().padding(horizontal=36.dp,vertical=28.dp)) {
+            if((id=="main" && phase in setOf(RitualPhase.CONTEMPLATE,RitualPhase.GATHER,RitualPhase.DRAW,RitualPhase.SPREAD)) || id=="reading") {
+                FateButton(local("返回开始页","Back to start"),interact,icon=R.drawable.ic_fate_back) { vm.playEffect("button");vm.returnToStart() }
+                Spacer(Modifier.height(12.dp))
+            }
             if(id=="history") {
                 FateButton(if(ui.historyDetail==null) local("返回开始页","Back to start") else local("返回历史列表","Back to history"),interact) {
                     vm.playEffect("button")
@@ -118,26 +125,32 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         ?.takeIf { it in 0 until ui.ritual.revealedCount }
                         ?: (ui.ritual.revealedCount-1).coerceAtLeast(0)
                     val card=ui.ritual.selectedCards.getOrNull(i)
-                    title(if(card != null && ui.ritual.revealedCount > 0) position(i,zh)+" · "+vm.title(card.cardId)
-                        else local("过去 · 现在 · 未来","Past · Present · Future"))
+                    title(if(card != null && ui.ritual.revealedCount > 0) (if(ui.ritual.mode==RitualMode.DAILY) local("今日","Today") else position(i,zh))+" · "+vm.title(card.cardId)
+                        else if(ui.ritual.mode==RitualMode.DAILY) local("翻开今天的牌","Reveal today’s card") else local("过去 · 现在 · 未来","Past · Present · Future"))
                     if(ui.ritual.revealedCount>0 && card != null) {
                         body(orientation(card,zh))
                         body(ui.readingDisplayText ?: ui.narrationText.orEmpty())
                         body(local("轻点已翻开的牌可回看解读；解读中的卡牌保持固定。",
                             "Tap a revealed card to revisit its reading. Reading cards remain fixed."))
                     }
+                    if(ui.speechPaused) body(local("旁白已暂停","Narration paused"))
                     if(phase == RitualPhase.SUMMARY) {
                         body(local("本次解读已完成","Reading complete"))
-                        action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
-                    } else if(ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
+                        if(ui.ritual.mode==RitualMode.DAILY) {
+                            body(local("今日牌已保存，今天再次进入仍是同一张。","Today’s card is saved and stays the same when you return."))
+                        } else action(copy("summary-primary")) { vm.onEvent(RitualEvent.Reset) }
+                    } else if(ui.ritual.narrationPlaying && ui.ritual.revealedCount<ui.ritual.targetCount) {
                         body(local("当前牌解读完成后，再翻开下一张。","Reveal the next card after the current narration finishes."))
-                    } else if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<3) {
-                        body(local("注视下一张牌并捏合，或用指尖轻点，即可翻牌；翻开后保持原位。",
+                    } else if(!ui.ritual.narrationPlaying && ui.ritual.revealedCount<ui.ritual.targetCount) {
+                        body(local("注视发光的牌并捏合，或用指尖轻点，即可翻牌；翻开后保持原位。",
                             "Look at the next card and pinch, or tap with your fingertip to reveal it. Revealed cards stay in place."))
                     }
                 }
 
                 else -> {
+                    if(id=="main" && ui.comfortOpen) {
+                        ComfortControls(ui.comfortDraft,ui.comfortValidation,ui.comfortError!=null,ui.language,interact,{vm.playEffect("button");vm.setComfort(it)},{vm.playEffect("button");vm.recenterComfort()},{vm.playEffect("button");vm.cancelComfort()},{vm.playEffect("button");vm.confirmComfort()})
+                    } else {
                     val key=when(phase) {
                         RitualPhase.SAFETY -> "safety"
                         RitualPhase.SYSTEMS -> "systems"
@@ -147,20 +160,30 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         RitualPhase.SPREAD -> "spread"
                         else -> "contemplate"
                     }
-                    title(copy("$key-title"))
+                    title(if(phase==RitualPhase.SYSTEMS) local("命运之牌","Cards of Fate") else if(ui.ritual.mode==RitualMode.DAILY && phase==RitualPhase.CONTEMPLATE) local("把注意力放回今天","Return your attention to today") else copy("$key-title"))
                     if(phase == RitualPhase.DRAW) {
                         body(local("每组 13 张。捏住牌背，抽出并放入过去、现在或未来的空位。",
                             "13 cards per group. Hold a card back, draw it out, and place it in an empty Past, Present, or Future slot."))
                         body(local("也可轻点牌背，放入下一个空位。",
                             "You can also tap a card back to place it in the next empty slot."))
-                    } else body(copy("$key-copy"))
+                    } else if(phase==RitualPhase.SYSTEMS) body(local("把片刻留给自己，选择今天的体验。","Take a moment for yourself. Choose your experience.")) else if(ui.ritual.mode==RitualMode.DAILY) body(local("不必输入，也不必说出来。准备好后继续。","You do not need to type or say it. Continue when you are ready.")) else body(copy("$key-copy"))
                     when(phase) {
                         RitualPhase.SAFETY -> {
                             action(copy("safety-primary")) { vm.onEvent(RitualEvent.AcceptSafety) }
                             if(!ui.handTrackingReady && !ui.controllerActive) body(copy("tracking-lost-copy"))
                         }
                         RitualPhase.SYSTEMS -> {
-                            action(copy("systems-primary"), ui.sceneReady && ui.spaceReady && ui.handTrackingReady) { vm.onEvent(RitualEvent.SystemsReady) }
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.weight(1f)) { action(local("每日一张","Daily card"),ui.sceneReady && ui.spaceReady && ui.handTrackingReady) { vm.startDaily() } }
+                                Box(Modifier.weight(1f)) { action(local("三牌仪式","Three-card ritual"),ui.sceneReady && ui.spaceReady && ui.handTrackingReady) { vm.onEvent(RitualEvent.SystemsReady) } }
+                            }
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.weight(1f)) { action(local("舒适位置","Comfort")) { vm.openComfort() } }
+                                Box(Modifier.weight(1f)) { action(copy("history-title")) { vm.onUiEvent(FateUiEvent.ToggleHistory) } }
+                            }
+                            if(ui.dailyLoadError!=null) body(local("今日牌尚未保存，请再次选择每日一张重试。","Today’s card could not be saved. Select Daily card to retry."))
+                            body(local("空间牌典 · 敬请期待","Card atlas · Coming soon"))
+                            body(copy("systems-copy"))
                             if(!ui.sceneReady) body(local("牌组正在进入空间…","Bringing the deck into your space…"))
                             else if(!ui.spaceReady) {
                                 body(copy("space-error-copy")); action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS,RitualPhase.CONTEMPLATE)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
@@ -183,20 +206,29 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         }
                         else -> Unit
                     }
-                    if(ExperiencePolicy.historyAvailable(phase)) action(copy("history-title")) { vm.onUiEvent(FateUiEvent.ToggleHistory) }
+
+                    }
                 }
             }
+            }
+            if(id=="reading" && ui.ritual.narrationPlaying) {
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.weight(1f)) { FateButton(local(if(ui.speechPaused) "继续旁白" else "暂停旁白",if(ui.speechPaused) "Resume narration" else "Pause narration"),interact,
+                                icon=if(ui.speechPaused) R.drawable.ic_fate_resume else R.drawable.ic_fate_pause) { vm.playEffect("button");if(ui.speechPaused) vm.resumeNarration() else vm.pauseNarration() } }
+                            Box(Modifier.weight(1f)) { FateButton(local("跳过本张旁白","Skip narration"),interact,icon=R.drawable.ic_fate_skip) { vm.playEffect("button");vm.skipNarration() } }
+                        }
             }
         }
     }
 }
 
 @Composable
-internal fun FateButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun FateButton(label: String, enabled: Boolean, icon:Int?=null, onClick: () -> Unit) {
     // SpatialUI owns hover, pressed and disabled feedback; approved plaque silhouette/colors.
     Button(onClick=onClick,enabled=enabled,shape=SealShape,
         colors=ButtonDefaults.buttonColors(containerColor=FatePalette.ritualGold,contentColor=FatePalette.ritualInk),
         modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) {
+        if(icon!=null) { Image(painterResource(icon),contentDescription=null,modifier=Modifier.size(24.dp));Spacer(Modifier.width(8.dp)) }
         Text(label,style=PicoTheme.typography.titleMedium.copy(fontFamily=FateFont),textAlign=TextAlign.Center)
     }
 }

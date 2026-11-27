@@ -3,6 +3,16 @@ package com.example.cardsfate.ui.ritual
 import com.example.cardsfate.domain.model.*
 
 data class FateUiState(
+    val speechPaused:Boolean = false,
+    val comfort:ComfortPreference = ComfortPreference(),
+    val comfortDraft:ComfortPreference = ComfortPreference(),
+    val comfortOpen:Boolean = false,
+    val comfortValidation:Boolean? = null,
+    val recenterRequest:Long = 0,
+    val comfortCommit:Long = 0,
+    val comfortError:String? = null,
+    val dailyRecord:DailyRecord? = null,
+    val dailyLoadError:String? = null,
     val ritual: RitualState = RitualState(),
     val language: ReadingLanguage = ReadingLanguage.EN,
     val catalog: List<CatalogCard> = emptyList(),
