@@ -2,7 +2,7 @@
 
 PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，系统为中文时显示「命运之牌」，其他语言显示「Cards of Fate」，运行界面按语言单独显示。
 
-**本分支：1.2.0 调试版（versionCode 12）。** 新增每日一张、舒适位置预览/确认、旁白暂停继续与跳过、三牌返回开始页、可翻提示与局部光效。101项测试及构建通过，已覆盖安装至PICO；完整手势与舒适度实测待用户验收。[本轮说明](docs/releases/1.2.0.md)。本地APK：`delivery/debug/cards-fate-1.2.0-debug.apk`，尚未推送GitHub。
+**本分支：1.2.1 调试版（versionCode 13）。** 修复舒适位置受阻时预览牌全部消失、区分具体避让原因；每日一牌按钮、文字与旁白统一为“我准备好了”。104项测试、构建及包内检查通过。按用户要求先交付APK，尚未安装新版至头显。[本轮说明](docs/releases/1.2.1.md)。本地APK：`delivery/debug/cards-fate-1.2.1-debug.apk`，尚未推送GitHub。
 
 **当前公开版本：1.1.2 调试预览版（versionCode 11）。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.1.2-debug/cards-fate-1.1.2-debug.apk) · [版本说明](docs/releases/1.1.2.md) · [投稿资料](docs/submission/填写指南.md)
 

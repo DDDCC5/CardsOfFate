@@ -8,6 +8,8 @@ data class FateUiState(
     val comfortDraft:ComfortPreference = ComfortPreference(),
     val comfortOpen:Boolean = false,
     val comfortValidation:Boolean? = null,
+    val comfortPreview:ComfortPreviewKind = ComfortPreviewKind.UNAVAILABLE,
+    val comfortBlock:WorkspaceBlock = WorkspaceBlock.NONE,
     val recenterRequest:Long = 0,
     val comfortCommit:Long = 0,
     val comfortError:String? = null,

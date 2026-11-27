@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-27",
+  "version": "1.2.1",
+  "versionCode": 13,
+  "package": "com.example.cardsfate",
+  "apkSha256": "801850c7269c8cabe5784c7e859eb146ffec5e06ade91b6473e711384ba84ca8",
+  "apkBytes": 508583593,
+  "tests": {
+    "tests": 104,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "buildPassed": true,
+  "packageCheckPassed": true,
+  "iconCheckPassed": true,
+  "uiStylePassed": true,
+  "narrationClips": 1576,
+  "dailyNarrationClips": 314,
+  "models": 13,
+  "deviceInstalled": false,
+  "deviceLaunchPassed": false,
+  "realUserComfortVerified": false,
+  "realUserDailyGuidanceVerified": false,
+  "deviceDeferral": "User requested APK delivery now and installation later.",
+  "publishedToGitHub": false
+}

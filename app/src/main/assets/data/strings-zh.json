@@ -116,5 +116,8 @@
   "history-save-error-label": "命运之牌",
   "history-save-error-copy": "本次解读仍在这里。请重试保存，已有记录不会被覆盖。",
   "history-save-error-primary": "重试保存",
-  "history-save-error-history": "历史记录"
+  "history-save-error-history": "历史记录",
+  "daily-guidance-title": "把注意力放回今天",
+  "daily-guidance-copy": "不必输入，也不必说出来。准备好后，点击“我准备好了”。",
+  "daily-guidance-primary": "我准备好了"
 }

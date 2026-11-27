@@ -94,6 +94,11 @@ class FateSceneController(
     private var fanPage=-1
     private var sceneSession=-1L
     private var cueMaterial:UnlitMaterial?=null
+    private data class ComfortPose(val center:Vector3,val rotation:Quat)
+    private val comfortPreviews=ComfortPreviewCache<ComfortPose>()
+    private var workspaceBlock=WorkspaceBlock.NONE
+    private var workspaceDiagnostic=""
+    private var previewDiagnostic=""
     private var comfortWasOpen=false
     private var comfortDraft:ComfortPreference?=null
     private var comfortRoomRevision=-1L
@@ -332,8 +337,9 @@ class FateSceneController(
                 }
             }
             }
-            orbitRadius=choice?.radius
-            layoutLift=choice?.lift ?: 0f
+            // An orbit is a preview: individual blocked cards are hidden below, never gate all room data.
+            orbitRadius=choice?.radius ?: 1.1f
+            layoutLift=choice?.lift ?: layoutLift
             layoutRevision=environment.revision
         }
         val controller = input.controllers?.right
@@ -382,17 +388,33 @@ class FateSceneController(
         if(ui.comfortOpen) {
             if(!comfortWasOpen) {
                 beforeComfortOrigin=frontOrigin;beforeComfortYaw=frontYaw;comfortCommitAtOpen=ui.comfortCommit
-                captureFront(input);comfortDraft=null
+                captureFront(input);comfortDraft=null;comfortPreviews.reset()
             }
-            if(ui.recenterRequest!=comfortRecenter) { if(comfortWasOpen) captureFront(input);comfortRecenter=ui.recenterRequest;comfortDraft=null }
+            if(ui.recenterRequest!=comfortRecenter) { if(comfortWasOpen) captureFront(input);comfortRecenter=ui.recenterRequest;comfortDraft=null;comfortPreviews.reset() }
             comfortWasOpen=true
             if(comfortDraft!=ui.comfortDraft || comfortRoomRevision!=environment.revision || ui.comfortValidation==null) {
                 comfortDraft=ui.comfortDraft;comfortRoomRevision=environment.revision
                 vm.setComfortValidation(chooseInteractionLayout(state,input,false))
             }
             cards.values.forEach{it.owner.enabled=false;it.face.enabled=false}
-            if(vm.state.value.comfortValidation==true) cards.values.take(3).forEachIndexed { index,card ->
-                card.owner.enabled=true;place(card,stackCenter+interactionYaw.rotateVector(vector(CardFanLayout.slotOffset(index))),readingBackRotation())
+            val requested=ComfortPose(stackCenter,interactionYaw)
+            val previewCards=cards.values.take(3)
+            val selected=comfortPreviews.select(requested) { pose ->
+                previewCards.withIndex().all { (index,card) ->
+                    environment.isCardSafe(pose.center+pose.rotation.rotateVector(vector(CardFanLayout.slotOffset(index))),
+                        pose.rotation*Quat(Vector3.UP,PI.toFloat()),card.half,card.boundsCenter)
+                }
+            }
+            selected.pose?.let { pose -> previewCards.forEachIndexed { index,card ->
+                card.owner.enabled=true
+                place(card,pose.center+pose.rotation.rotateVector(vector(CardFanLayout.slotOffset(index))),pose.rotation*Quat(Vector3.UP,PI.toFloat()))
+            } }
+            val kind=if(selected.pose==null) ComfortPreviewKind.UNAVAILABLE else if(selected.fallback) ComfortPreviewKind.LAST_SAFE else ComfortPreviewKind.TARGET
+            vm.setComfortPreview(kind,workspaceBlock)
+            val previewKey="$kind:${ui.comfortDraft}:$workspaceBlock:${selected.pose?.center}"
+            if(previewKey!=previewDiagnostic) {
+                previewDiagnostic=previewKey
+                Log.i(TAG,"COMFORT_PREVIEW draft=${ui.comfortDraft} display=$kind shown=${selected.pose?.center} valid=${vm.state.value.comfortValidation} block=$workspaceBlock planes=${environment.systemAnchorCount}")
             }
             decorations.forEach{it.enabled=false};resetPressInputs();updatePanels();return
         } else if(comfortWasOpen) {
@@ -960,7 +982,8 @@ class FateSceneController(
 
     /** All candidate positions share the captured ritual-start frame, just like fixed panels. */
     private fun chooseInteractionLayout(state:RitualState,input:InputSnapshot,checkGather:Boolean):Boolean {
-        if(!input.hmdAvailable) return false
+        workspaceBlock=WorkspaceBlock.NONE
+        if(!input.hmdAvailable) { workspaceBlock=WorkspaceBlock.TRACKING;return false }
         val pose=input.hmd!!.hmdPose
         interactionHead=frontOrigin ?: pose.position
         interactionYaw=frontYaw
@@ -969,7 +992,7 @@ class FateSceneController(
             stackCenter=interactionHead!!+interactionYaw.rotateVector(vector(offset))
             val isDaily=state.mode==RitualMode.DAILY && !vm.state.value.comfortOpen
             val clearStack=isDaily || (0 until 78).all { env.isCardSafe(stackPosition(it),stackRotation(),deckHalf,deckBoundsCenter) }
-            if(!clearStack) continue
+            if(!clearStack) { workspaceBlock=WorkspaceBlock.STACK;continue }
             val clearRead=(0 until if(isDaily) 1 else 3).all { index ->
                 val position=readingPosition(index)
                 (0..20).all { step ->
@@ -986,12 +1009,15 @@ class FateSceneController(
                     env.isCardSafe(stackPosition(index)+(position-stackPosition(index))*t,Quat.slerp(stackRotation(),rotation,t),deckHalf,deckBoundsCenter)
                 }
             }
-            if(clearRead && clearFan && (!checkGather || prepareAutomaticMotion(state))) {
-                Log.i(TAG,"WORKSPACE_ACCEPT viewOffset=$offset center=$stackCenter")
-                return true
-            }
+            if(!clearRead) { workspaceBlock=WorkspaceBlock.READING;continue }
+            if(!clearFan) { workspaceBlock=WorkspaceBlock.FAN;continue }
+            if(checkGather && !prepareAutomaticMotion(state)) {workspaceBlock=WorkspaceBlock.TRANSITION;continue}
+            val key="accept:$offset:$stackCenter"
+            if(workspaceDiagnostic!=key) { workspaceDiagnostic=key;Log.i(TAG,"WORKSPACE_ACCEPT viewOffset=$offset center=$stackCenter") }
+            return true
         }
-        Log.w(TAG,"REJECT source=centered-down-workspace; no safe current-view candidate")
+        val key="reject:${vm.state.value.comfortDraft}:$workspaceBlock:$stackCenter"
+        if(workspaceDiagnostic!=key) { workspaceDiagnostic=key;Log.w(TAG,"WORKSPACE_REJECT source=centered-down-workspace block=$workspaceBlock center=$stackCenter") }
         return false
     }
 
@@ -1081,7 +1107,7 @@ class FateSceneController(
     }
     private fun place(card: Card, position: Vector3, rotation: Quat):Boolean {
         if (!cardSafe(card,position,rotation)) {
-            if(ExperiencePolicy.cardCollisionBlocksSession(vm.state.value.ritual.phase)) unsafe=true
+            if(!vm.state.value.comfortOpen && ExperiencePolicy.cardCollisionBlocksSession(vm.state.value.ritual.phase)) unsafe=true
             card.owner.enabled=false
             return false
         }

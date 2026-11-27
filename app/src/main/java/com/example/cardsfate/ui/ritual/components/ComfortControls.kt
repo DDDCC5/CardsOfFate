@@ -12,7 +12,7 @@ import com.pico.spatial.ui.design.PicoTheme
 import com.pico.spatial.ui.design.Text
 
 @Composable
-internal fun ComfortControls(draft:ComfortPreference,validation:Boolean?,error:Boolean,language:ReadingLanguage,interact:Boolean,onSet:(ComfortPreference)->Unit,onRecenter:()->Unit,onCancel:()->Unit,onConfirm:()->Unit) {
+internal fun ComfortControls(draft:ComfortPreference,validation:Boolean?,preview:ComfortPreviewKind,block:WorkspaceBlock,error:Boolean,language:ReadingLanguage,interact:Boolean,onSet:(ComfortPreference)->Unit,onRecenter:()->Unit,onCancel:()->Unit,onConfirm:()->Unit) {
     val zh=language==ReadingLanguage.ZH
     fun local(a:String,b:String)=if(zh)a else b
     Text(local("让牌组停在舒服的位置","Place the cards comfortably"),style=PicoTheme.typography.headlineSmall.copy(fontFamily=FateFont),color=FatePalette.ritualGold)
@@ -25,7 +25,18 @@ internal fun ComfortControls(draft:ComfortPreference,validation:Boolean?,error:B
         listOf(-.06,0.0,.06).forEachIndexed { index,value -> Box(Modifier.weight(1f)) { FateButton((if(zh) listOf("低一点","默认","高一点") else listOf("Lower","Default","Higher"))[index],interact) { onSet(draft.copy(height=value)) } } }
     }
     FateButton(local("以当前朝向居中","Center on this direction"),interact) { onRecenter() }
-    Text(when(validation){true->local("位置检查通过，确认后保持固定。","Position is clear. Confirm to keep it fixed.");false->local("当前位置未通过空间检查，请调整后重试。","Position is not clear. Adjust and retry.");null->local("正在检查位置…","Checking position…")},color=FatePalette.ritualIvory)
+    Text(when {
+        block==WorkspaceBlock.TRACKING -> local("系统空间信息暂不可用，预览已暂停。恢复后会继续设置。","Room tracking is temporarily unavailable. The preview will resume when it returns.")
+        validation==true -> local("位置检查通过，确认后保持固定。","Position is clear. Confirm to keep it fixed.")
+        validation==null -> local("正在检查位置…","Checking position…")
+        else -> when(block) {
+            WorkspaceBlock.FAN -> local("下方牌扇与真实环境冲突，当前设置不能确认。","The lower fan conflicts with the room. This setting cannot be confirmed.")
+            WorkspaceBlock.STACK -> local("牌堆位置与真实环境冲突，请调高一点或更换距离。","The pile conflicts with the room. Raise it or choose another distance.")
+            else -> local("目标位置或翻牌路径受阻，请调高一点或更换距离。","The position or reveal path is blocked. Raise it or choose another distance.")
+        }
+    },color=FatePalette.ritualIvory)
+    if(validation==false && preview==ComfortPreviewKind.LAST_SAFE) Text(local("牌暂留在上一个仍安全的预览位置，新设置尚未应用。","Cards remain at the last clear preview position. The new setting has not been applied."),color=FatePalette.ritualIvory)
+    if(validation==false && preview==ComfortPreviewKind.UNAVAILABLE) Text(local("当前没有可安全显示的预览位置；请恢复默认或调整距离。","No clear preview position is available. Restore the default or adjust distance."),color=FatePalette.ritualIvory)
     if(error) Text(local("设置尚未保存，请重试确认。","Settings could not be saved. Please retry."),color=FatePalette.ritualIvory)
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         Box(Modifier.weight(1f)){FateButton(local("取消","Cancel"),interact){onCancel()}}

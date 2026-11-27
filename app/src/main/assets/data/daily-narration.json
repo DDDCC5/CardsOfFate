@@ -1900,7 +1900,7 @@
       "id": "daily-guidance/zh/question",
       "language": "zh",
       "kind": "guidance",
-      "text": "把注意力放回今天。不必输入，也不必说出来。准备好后，轻点我准备好了。"
+      "text": "把注意力放回今天。不必输入，也不必说出来。准备好后，点击我准备好了。"
     },
     {
       "id": "daily-guidance/en/question",
@@ -7842,7 +7842,7 @@
       "id": "daily-guidance/zh/question",
       "language": "zh",
       "kind": "guidance",
-      "text": "把注意力放回今天。不必输入，也不必说出来。准备好后，轻点我准备好了。",
+      "text": "把注意力放回今天。不必输入，也不必说出来。准备好后，点击我准备好了。",
       "fragments": [
         "daily-guidance/zh/question"
       ]

@@ -517,9 +517,12 @@ class FateViewModelTest {
         val services=LocalServices();val model=vm(services)
         ready(model);model.onEvent(RitualEvent.LogoFinished);model.onEvent(RitualEvent.AcceptSafety)
         model.openComfort();model.setComfortValidation(true)
+        model.setComfortPreview(ComfortPreviewKind.TARGET,WorkspaceBlock.NONE)
         model.setRuntimeStatus(true,false,true,false,false)
         model.confirmComfort()
         assertNull(model.state.value.comfortValidation);assertEquals(0,services.comfortSaves)
+        assertEquals(ComfortPreviewKind.UNAVAILABLE,model.state.value.comfortPreview)
+        assertEquals(WorkspaceBlock.TRACKING,model.state.value.comfortBlock)
         assertTrue(model.state.value.comfortOpen)
     }
 

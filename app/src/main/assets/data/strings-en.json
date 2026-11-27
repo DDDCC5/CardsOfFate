@@ -116,5 +116,8 @@
   "history-save-error-label": "Cards of Fate",
   "history-save-error-copy": "Your reading is still here. Try saving it again; existing records will not be overwritten.",
   "history-save-error-primary": "Try saving again",
-  "history-save-error-history": "Past readings"
+  "history-save-error-history": "Past readings",
+  "daily-guidance-title": "Return your attention to today",
+  "daily-guidance-copy": "You do not need to type or say anything. When you feel ready, select “I am ready”.",
+  "daily-guidance-primary": "I am ready"
 }

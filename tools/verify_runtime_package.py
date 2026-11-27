@@ -34,5 +34,12 @@ with zipfile.ZipFile(apk) as z:
     for u in daily:
         assert 'assets/audio/narration/'+u['id']+'.ogg' in entries
         assert u['text'].strip()
+    for lang in ('zh','en'):
+        strings=json.loads(z.read(f'assets/data/strings-{lang}.json'))
+        guide=next(u for u in daily if u['id']==f'daily-guidance/{lang}/question')
+        normalize=lambda text: text.replace('“','').replace('”','')
+        separator='。' if lang=='zh' else '. '
+        assert normalize(strings['daily-guidance-title']+separator+strings['daily-guidance-copy'])==normalize(guide['text'])
+        assert strings['daily-guidance-primary'] in strings['daily-guidance-copy']
     assert not any('/.venv/' in n or n.endswith('.blend') for n in entries)
     print(json.dumps({'apk':str(apk.resolve()),'cards':78,'localizedDecks':2,'narrationClips':len(units)+len(daily),'dailyNarrationClips':len(daily),'modelAssets':13,'interactionEffectModels':4,'passed':True},ensure_ascii=False,indent=2))

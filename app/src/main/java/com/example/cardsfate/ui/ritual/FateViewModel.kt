@@ -62,13 +62,17 @@ class FateViewModel(
     }
     fun openComfort() {
         if(closed || state.value.ritual.phase!=RitualPhase.SYSTEMS || state.value.historyOpen) return
-        mutableState.value=state.value.copy(comfortOpen=true,comfortDraft=state.value.comfort,comfortValidation=null)
+        mutableState.value=state.value.copy(comfortOpen=true,comfortDraft=state.value.comfort,comfortValidation=null,comfortPreview=ComfortPreviewKind.UNAVAILABLE,comfortBlock=WorkspaceBlock.NONE)
     }
     fun setComfort(draft:ComfortPreference) {
         if(state.value.comfortOpen) mutableState.value=state.value.copy(comfortDraft=draft,comfortValidation=null)
     }
     fun recenterComfort() { if(state.value.comfortOpen) mutableState.value=state.value.copy(recenterRequest=state.value.recenterRequest+1,comfortValidation=null) }
     fun setComfortValidation(valid:Boolean) { if(state.value.comfortOpen && state.value.comfortValidation!=valid) mutableState.value=state.value.copy(comfortValidation=valid) }
+    fun setComfortPreview(kind:ComfortPreviewKind,block:WorkspaceBlock) {
+        if(state.value.comfortOpen && (kind!=state.value.comfortPreview || block!=state.value.comfortBlock))
+            mutableState.value=state.value.copy(comfortPreview=kind,comfortBlock=block)
+    }
     fun cancelComfort() { mutableState.value=state.value.copy(comfortOpen=false,comfortDraft=state.value.comfort,comfortValidation=null) }
     fun confirmComfort() {
         if(!state.value.comfortOpen || state.value.comfortValidation!=true || !runtimeReady()) return
@@ -224,7 +228,9 @@ class FateViewModel(
         if (closed) return
         mutableState.value = state.value.copy(sceneReady = sceneReady, spaceReady = spaceReady, spaceDataReady = spaceDataReady,
             handTrackingReady = handsReady, controllerActive = controllerActive, gazeAvailable = gazeAvailable,
-            comfortValidation=if(!sceneReady || !spaceReady) null else state.value.comfortValidation)
+            comfortValidation=if(!sceneReady || !spaceReady) null else state.value.comfortValidation,
+            comfortPreview=if(!sceneReady || !spaceReady) ComfortPreviewKind.UNAVAILABLE else state.value.comfortPreview,
+            comfortBlock=if(!sceneReady || !spaceReady) WorkspaceBlock.TRACKING else state.value.comfortBlock)
         updateSuspension()
         state.value.ritual.let {
             if (it.phase == RitualPhase.READING && it.revealedCount == it.targetCount &&

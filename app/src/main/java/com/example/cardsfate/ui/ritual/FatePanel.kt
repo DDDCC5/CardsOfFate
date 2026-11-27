@@ -149,7 +149,7 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
 
                 else -> {
                     if(id=="main" && ui.comfortOpen) {
-                        ComfortControls(ui.comfortDraft,ui.comfortValidation,ui.comfortError!=null,ui.language,interact,{vm.playEffect("button");vm.setComfort(it)},{vm.playEffect("button");vm.recenterComfort()},{vm.playEffect("button");vm.cancelComfort()},{vm.playEffect("button");vm.confirmComfort()})
+                        ComfortControls(ui.comfortDraft,ui.comfortValidation,ui.comfortPreview,ui.comfortBlock,ui.comfortError!=null,ui.language,interact,{vm.playEffect("button");vm.setComfort(it)},{vm.playEffect("button");vm.recenterComfort()},{vm.playEffect("button");vm.cancelComfort()},{vm.playEffect("button");vm.confirmComfort()})
                     } else {
                     val key=when(phase) {
                         RitualPhase.SAFETY -> "safety"
@@ -160,13 +160,13 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                         RitualPhase.SPREAD -> "spread"
                         else -> "contemplate"
                     }
-                    title(if(phase==RitualPhase.SYSTEMS) local("命运之牌","Cards of Fate") else if(ui.ritual.mode==RitualMode.DAILY && phase==RitualPhase.CONTEMPLATE) local("把注意力放回今天","Return your attention to today") else copy("$key-title"))
+                    title(if(phase==RitualPhase.SYSTEMS) local("命运之牌","Cards of Fate") else if(ui.ritual.mode==RitualMode.DAILY && phase==RitualPhase.CONTEMPLATE) copy("daily-guidance-title") else copy("$key-title"))
                     if(phase == RitualPhase.DRAW) {
                         body(local("每组 13 张。捏住牌背，抽出并放入过去、现在或未来的空位。",
                             "13 cards per group. Hold a card back, draw it out, and place it in an empty Past, Present, or Future slot."))
                         body(local("也可轻点牌背，放入下一个空位。",
                             "You can also tap a card back to place it in the next empty slot."))
-                    } else if(phase==RitualPhase.SYSTEMS) body(local("把片刻留给自己，选择今天的体验。","Take a moment for yourself. Choose your experience.")) else if(ui.ritual.mode==RitualMode.DAILY) body(local("不必输入，也不必说出来。准备好后继续。","You do not need to type or say it. Continue when you are ready.")) else body(copy("$key-copy"))
+                    } else if(phase==RitualPhase.SYSTEMS) body(local("把片刻留给自己，选择今天的体验。","Take a moment for yourself. Choose your experience.")) else if(ui.ritual.mode==RitualMode.DAILY) body(copy("daily-guidance-copy")) else body(copy("$key-copy"))
                     when(phase) {
                         RitualPhase.SAFETY -> {
                             action(copy("safety-primary")) { vm.onEvent(RitualEvent.AcceptSafety) }
@@ -189,7 +189,7 @@ fun FatePanel(id: String, vm: FateViewModel, onRetrySpace: () -> Unit) {
                                 body(copy("space-error-copy")); action(if(phase in setOf(RitualPhase.LOGO,RitualPhase.SAFETY,RitualPhase.SYSTEMS,RitualPhase.CONTEMPLATE)) copy("space-error-primary") else local("重新开始","Restart")) { onRetrySpace() }
                             } else if(!ui.handTrackingReady) body(copy("tracking-lost-copy"))
                         }
-                        RitualPhase.CONTEMPLATE -> action(copy("contemplate-primary"),ui.ritual.suspension==null) { vm.onEvent(RitualEvent.ContemplationFinished) }
+                        RitualPhase.CONTEMPLATE -> action(copy(if(ui.ritual.mode==RitualMode.DAILY) "daily-guidance-primary" else "contemplate-primary"),ui.ritual.suspension==null) { vm.onEvent(RitualEvent.ContemplationFinished) }
                         RitualPhase.DRAW -> {
                             body(local("第 ${ui.ritual.drawPage+1} / 6 组 · 已选 ${ui.ritual.selectedIndices.size} / 3 张",
                                 "Group ${ui.ritual.drawPage+1} / 6 · ${ui.ritual.selectedIndices.size} / 3 selected"))
