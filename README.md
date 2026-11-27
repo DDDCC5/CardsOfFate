@@ -2,11 +2,9 @@
 
 PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，系统为中文时显示「命运之牌」，其他语言显示「Cards of Fate」，运行界面按语言单独显示。
 
-**本分支：1.2.1 调试版（versionCode 13）。** 修复舒适位置受阻时预览牌全部消失、区分具体避让原因；每日一牌按钮、文字与旁白统一为“我准备好了”。104项测试、构建及包内检查通过。按用户要求先交付APK，尚未安装新版至头显。[本轮说明](docs/releases/1.2.1.md)。本地APK：`delivery/debug/cards-fate-1.2.1-debug.apk`，尚未推送GitHub。
+**当前公开版本：1.2.1 调试预览版（versionCode 13）。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.2.1-debug/cards-fate-1.2.1-debug.apk) · [版本说明](docs/releases/1.2.1.md) · [投稿资料](docs/submission/填写指南.md)
 
-**当前公开版本：1.1.2 调试预览版（versionCode 11）。** [下载 APK](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.1.2-debug/cards-fate-1.1.2-debug.apk) · [版本说明](docs/releases/1.1.2.md) · [投稿资料](docs/submission/填写指南.md)
-
-近身牌扇支持手势抽取与落位，增加拖尾、落位亮光、翻牌符文和关联线。解读阶段使用独立捏合确认和快速指尖点按检测，解读牌保持固定；牌位标签与牌面拉开间距。89项单元测试和构建通过，已安装至真实PICO并记录第一张牌成功翻开；完整三张翻牌和标签视觉效果仍待用户验收。
+新增每日一牌、舒适位置设置、旁白暂停/继续/跳过与三牌返回开始页。1.2.1修复较低位置受阻时预览牌全部消失的问题，区分具体避让原因；每日一牌按钮、文字与旁白统一为“我准备好了”。104项单元测试、构建、包内素材、自定义图标及UI风格检查通过。按用户要求先交付APK，本版尚未安装至头显，舒适位置与每日引导的实机效果待验收。[完整验证记录](docs/releases/1.2.1-verification.json)。
 
 ## 图标复核（2026-11-16）
 
@@ -14,7 +12,7 @@ PICO Spatial 平台的 MR 塔罗体验应用。包名 `com.example.cardsfate`，
 
 已重新下载GitHub公开的1.0.7 APK，检查Android启动图标、PICO空间图层、编译资源引用并与源码逐像素比对，均为上述自定义塔罗标记；模板前景图层不存在。投稿图标与包内图标在深色背景上的合成结果每通道最大差值为1/255，差异仅在抗锯齿边缘。[本次核对报告](docs/submission/icon-package-verification.json) · [单独下载图标](https://github.com/DDDCC5/CardsOfFate/releases/download/v1.0.7-debug/cards-fate-app-icon-1024.png)。
 
-上述报告对应历史版本1.0.7。当前1.1.2已重新核对编译后的启动图标和PICO空间图层，仍为自定义塔罗标记；请使用顶部的1.1.2下载入口。
+上述报告对应历史版本1.0.7。当前1.2.1已重新核对编译后的启动图标和PICO空间图层，仍为自定义塔罗标记；请使用顶部的1.2.1下载入口。
 
 ## 投稿图片更新（2026-11-14）
 

@@ -23,5 +23,6 @@
   "realUserComfortVerified": false,
   "realUserDailyGuidanceVerified": false,
   "deviceDeferral": "User requested APK delivery now and installation later.",
-  "publishedToGitHub": false
+  "publishedToGitHub": true,
+  "releaseTag": "v1.2.1-debug"
 }
